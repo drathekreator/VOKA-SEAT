@@ -1,0 +1,274 @@
+<!DOCTYPE html><html class="light" lang="en"><head>
+<meta charset="utf-8">
+<meta content="width=device-width, initial-scale=1.0" name="viewport">
+<title>BrewStation - Cart</title>
+<!-- Google Fonts: Inter & Lexend -->
+<link href="https://fonts.googleapis.com" rel="preconnect">
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&amp;family=Lexend:wght@500;600;700&amp;display=swap" rel="stylesheet">
+<!-- Material Symbols -->
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet">
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+    </style>
+<!-- Tailwind CSS -->
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "on-tertiary-fixed": "#002019",
+                        "surface": "#fbf8fc",
+                        "surface-bright": "#fbf8fc",
+                        "surface-container-lowest": "#ffffff",
+                        "error-container": "#ffdad6",
+                        "tertiary-fixed-dim": "#74d8bd",
+                        "primary-container": "#e11d48",
+                        "inverse-on-surface": "#f3f0f4",
+                        "secondary-fixed": "#6ffbbe",
+                        "error": "#ba1a1a",
+                        "on-error-container": "#93000a",
+                        "on-tertiary": "#ffffff",
+                        "on-primary-container": "#fffaf9",
+                        "surface-variant": "#e4e1e6",
+                        "tertiary-container": "#00836c",
+                        "secondary": "#006c49",
+                        "tertiary-fixed": "#90f5d9",
+                        "surface-dim": "#dcd9dd",
+                        "secondary-container": "#6cf8bb",
+                        "primary-fixed-dim": "#ffb3b6",
+                        "secondary-fixed-dim": "#4edea3",
+                        "surface-container": "#f0edf1",
+                        "outline": "#906f70",
+                        "surface-tint": "#be0037",
+                        "on-primary": "#ffffff",
+                        "on-secondary-fixed": "#002113",
+                        "surface-container-low": "#f6f2f7",
+                        "on-primary-fixed": "#40000c",
+                        "inverse-primary": "#ffb3b6",
+                        "primary-fixed": "#ffdada",
+                        "on-tertiary-container": "#eefff7",
+                        "surface-container-highest": "#e4e1e6",
+                        "on-secondary-fixed-variant": "#005236",
+                        "background": "#fbf8fc",
+                        "on-primary-fixed-variant": "#920028",
+                        "on-surface": "#1b1b1e",
+                        "on-background": "#1b1b1e",
+                        "outline-variant": "#e5bdbe",
+                        "on-surface-variant": "#5c3f40",
+                        "on-error": "#ffffff",
+                        "inverse-surface": "#303033",
+                        "surface-container-high": "#eae7eb",
+                        "on-secondary-container": "#00714d",
+                        "on-secondary": "#ffffff",
+                        "tertiary": "#006855",
+                        "primary": "#b80035",
+                        "on-tertiary-fixed-variant": "#005142"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "full": "9999px"
+                    },
+                    "spacing": {
+                        "margin-tablet": "24px",
+                        "unit": "4px",
+                        "margin-mobile": "16px",
+                        "lg": "24px",
+                        "xs": "4px",
+                        "xl": "32px",
+                        "gutter": "16px",
+                        "sm": "8px",
+                        "md": "16px"
+                    },
+                    "fontFamily": {
+                        "body-md": ["Inter"],
+                        "body-sm": ["Inter"],
+                        "label-md": ["Inter"],
+                        "headline-md": ["Lexend"],
+                        "headline-lg-mobile": ["Lexend"],
+                        "headline-sm": ["Lexend"],
+                        "label-sm": ["Inter"],
+                        "display-lg": ["Lexend"],
+                        "body-lg": ["Inter"]
+                    },
+                    "fontSize": {
+                        "body-md": ["16px", {"lineHeight": "24px", "fontWeight": "400"}],
+                        "body-sm": ["14px", {"lineHeight": "20px", "fontWeight": "400"}],
+                        "label-md": ["14px", {"lineHeight": "20px", "fontWeight": "600"}],
+                        "headline-md": ["24px", {"lineHeight": "32px", "letterSpacing": "-0.01em", "fontWeight": "600"}],
+                        "headline-lg-mobile": ["28px", {"lineHeight": "36px", "fontWeight": "600"}],
+                        "headline-sm": ["20px", {"lineHeight": "28px", "fontWeight": "500"}],
+                        "label-sm": ["12px", {"lineHeight": "16px", "fontWeight": "500"}],
+                        "display-lg": ["32px", {"lineHeight": "40px", "letterSpacing": "-0.02em", "fontWeight": "600"}],
+                        "body-lg": ["18px", {"lineHeight": "28px", "fontWeight": "400"}]
+                    }
+                }
+            }
+        }
+    </script>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-background text-on-background min-h-screen pb-[160px] md:pb-[88px] selection:bg-primary-container selection:text-on-primary-container font-body-md antialiased">
+<!-- TopAppBar -->
+<header class="w-full top-0 sticky bg-surface shadow-sm flex items-center justify-between px-margin-mobile h-16 z-40">
+<div class="flex items-center h-full">
+  <img src="https://lh3.googleusercontent.com/aida/ADBb0uiWR_0PkhodqYKt1q75g4dHTGslmfZqQsHJNbkZEBRT5bvKjRun3eaq2beqE25q149AAUEIFGREsrsTZcz1SEWUFifyy7RBLuxqUZYbAtDt1yY8TSd3igLPHvG3TpsFK-5-WC2LpXwkfkjAD8ZgHct8wDXNwBZC9vXsYO-au-HhNRQ40F6VvrDHCXGO4n932EK-1VLd8mPsbh0QHh8BtqdzgY8Uw2K7bW7ZxEcQcmuazS63xXpWvXcVAhNzxYQmfJCztYhuc7xr" alt="VOKAFE Logo" class="h-8 w-auto object-contain">
+</div>
+<button aria-label="Search" class="w-10 h-10 flex items-center justify-center rounded-full text-on-surface-variant hover:bg-surface-container-high transition-colors active:scale-95 transition-transform">
+<span class="material-symbols-outlined">search</span>
+</button>
+</header>
+<main class="w-full max-w-2xl mx-auto px-margin-mobile pt-lg flex flex-col gap-xl">
+<!-- Cart Items Section -->
+<section class="flex flex-col gap-md">
+<h2 class="font-headline-sm text-headline-sm text-on-surface">Your Order</h2>
+<div class="flex flex-col gap-sm">
+<!-- Item 1 -->
+<article class="flex items-center gap-md bg-surface-container-lowest p-sm pr-md rounded-xl shadow-[0_4px_12px_rgba(0,0,0,0.04)] ring-1 ring-surface-variant/50">
+<div class="w-[72px] h-[72px] rounded-lg overflow-hidden shrink-0 bg-surface-variant">
+<img alt="Caramel Macchiato" class="w-full h-full object-cover" data-alt="A top-down view of a beautifully crafted caramel macchiato in a clear, modern glass sitting on a pristine white marble countertop. The espresso is perfectly layered over the milk, with a delicate lattice of caramel sauce on top. Soft, ambient high-key lighting creates a clean, minimalist aesthetic with crisp shadows, perfectly complementing a modern coffee shop UI design. The mood is fresh, energetic, and artisanal." src="https://lh3.googleusercontent.com/aida-public/AB6AXuD3f2Wnk7E9PAL8j4QMTbaVS6nhjFGNfnSi5tsaIWQGag3yRm2gZPucSN6GMA70KAJVIjbomryrYOGfXShxCdvhrsPU13w2xr2kGBUTv7HMSqO3s8L76PJ2rtRTa6_E4CFvCGcVCAn8Kxur799e76otrc4cqBnMjBXEg6V0guTh_XBCd7bd0ii2gkspx8P9Ewr6yO3jYWX9T2-sTBpQjml8et4ufwbbeCEpHXh3Pa3ehUv1VmuK4HbvPFDoaTz2bQC-HAIODMn-P4c">
+</div>
+<div class="flex-1 flex flex-col justify-center min-w-0">
+<h3 class="font-label-md text-label-md text-on-surface truncate">Caramel Macchiato</h3>
+<p class="font-body-sm text-body-sm text-on-surface-variant truncate">Oat Milk, Iced, Less Sweet</p>
+<p class="font-label-md text-label-md text-primary mt-1">$5.50</p>
+</div>
+<div class="flex items-center bg-surface rounded-full ring-1 ring-surface-variant h-[36px] shrink-0">
+<button aria-label="Decrease quantity" class="w-[36px] h-full flex items-center justify-center text-on-surface-variant hover:text-primary hover:bg-primary-container/10 rounded-l-full active:scale-95 transition-all">
+<span class="material-symbols-outlined text-[18px]">remove</span>
+</button>
+<span class="font-label-md text-label-md text-on-surface w-[24px] text-center select-none">1</span>
+<button aria-label="Increase quantity" class="w-[36px] h-full flex items-center justify-center text-on-surface-variant hover:text-primary hover:bg-primary-container/10 rounded-r-full active:scale-95 transition-all">
+<span class="material-symbols-outlined text-[18px]">add</span>
+</button>
+</div>
+</article>
+<!-- Item 2 -->
+<article class="flex items-center gap-md bg-surface-container-lowest p-sm pr-md rounded-xl shadow-[0_4px_12px_rgba(0,0,0,0.04)] ring-1 ring-surface-variant/50">
+<div class="w-[72px] h-[72px] rounded-lg overflow-hidden shrink-0 bg-surface-variant">
+<img alt="Butter Croissant" class="w-full h-full object-cover" data-alt="A flaky, golden-brown butter croissant resting on a minimalist white ceramic plate. The lighting is bright and diffused, highlighting the delicate layers and crisp texture of the pastry. The background is a clean, slightly blurred light gray surface, adhering to a sterile yet welcoming modern tech aesthetic. Warm golden tones of the pastry contrast beautifully against the cool, pristine environment." src="https://lh3.googleusercontent.com/aida-public/AB6AXuDIP4YdNHfdw6RI6ZpsNgLKHKs-3MYt95TwS9Ea7vvMwKkJTVRhl94V7SG_5R5BDpReYFA8-z55GlzDGw-nofGOHRsJ1DNB39CnXf6dXXVtk6H6FiMFYSrYrSiSXGsfFRIAtIzWtB_HYdldUFQq462ZLRAaqltf6K2TYNQnuLXpO0XRI2ASugKqgMXJSsGFnCuaoxc0EnwyqsAJAyT5jS9HOJSwaeTiceGxC_0mNc22hxJmsl-WOHdn2-bamRqoJ6Xqah60dkCnZO4">
+</div>
+<div class="flex-1 flex flex-col justify-center min-w-0">
+<h3 class="font-label-md text-label-md text-on-surface truncate">Butter Croissant</h3>
+<p class="font-body-sm text-body-sm text-on-surface-variant truncate">Warmed</p>
+<p class="font-label-md text-label-md text-primary mt-1">$3.50</p>
+</div>
+<div class="flex items-center bg-surface rounded-full ring-1 ring-surface-variant h-[36px] shrink-0">
+<button aria-label="Decrease quantity" class="w-[36px] h-full flex items-center justify-center text-on-surface-variant hover:text-primary hover:bg-primary-container/10 rounded-l-full active:scale-95 transition-all">
+<span class="material-symbols-outlined text-[18px]">remove</span>
+</button>
+<span class="font-label-md text-label-md text-on-surface w-[24px] text-center select-none">2</span>
+<button aria-label="Increase quantity" class="w-[36px] h-full flex items-center justify-center text-on-surface-variant hover:text-primary hover:bg-primary-container/10 rounded-r-full active:scale-95 transition-all">
+<span class="material-symbols-outlined text-[18px]">add</span>
+</button>
+</div>
+</article>
+<button class="w-full h-12 flex items-center justify-center gap-2 border border-dashed border-outline-variant rounded-xl text-primary font-label-md text-label-md hover:bg-primary-container/5 transition-colors mt-2">
+<span class="material-symbols-outlined">add_circle</span>
+                    Add more items
+                </button>
+</div>
+</section>
+<!-- Payment Method Section -->
+<section class="flex flex-col gap-md">
+<h2 class="font-headline-sm text-headline-sm text-on-surface">Payment Method</h2>
+<div class="grid grid-cols-3 gap-sm">
+<!-- Selected Method -->
+<button class="flex flex-col items-center justify-center p-md rounded-xl border-2 border-primary bg-primary-container/10 gap-2 relative overflow-hidden transition-all active:scale-95">
+<div class="absolute top-2 right-2 w-4 h-4 bg-primary rounded-full flex items-center justify-center">
+<span class="material-symbols-outlined text-[12px] text-on-primary" style="font-variation-settings: 'FILL' 1;">check</span>
+</div>
+<span class="material-symbols-outlined text-primary text-[28px]">qr_code_scanner</span>
+<span class="font-label-sm text-label-sm text-primary font-semibold">QRIS</span>
+</button>
+<!-- Unselected Method -->
+<button class="flex flex-col items-center justify-center p-md rounded-xl border border-surface-variant bg-surface-container-lowest gap-2 text-on-surface-variant hover:bg-surface-container-high transition-colors active:scale-95">
+<span class="material-symbols-outlined text-[28px]">account_balance_wallet</span>
+<span class="font-label-sm text-label-sm">E-Wallet</span>
+</button>
+<!-- Unselected Method -->
+<button class="flex flex-col items-center justify-center p-md rounded-xl border border-surface-variant bg-surface-container-lowest gap-2 text-on-surface-variant hover:bg-surface-container-high transition-colors active:scale-95">
+<span class="material-symbols-outlined text-[28px]">payments</span>
+<span class="font-label-sm text-label-sm">Cash</span>
+</button>
+</div>
+</section>
+<!-- Order Summary Section -->
+<section class="bg-surface-container-lowest p-md rounded-xl shadow-[0_4px_12px_rgba(0,0,0,0.04)] ring-1 ring-surface-variant/50 flex flex-col gap-3">
+<div class="flex justify-between items-center">
+<span class="font-body-md text-body-md text-on-surface-variant">Subtotal</span>
+<span class="font-body-md text-body-md text-on-surface">$12.50</span>
+</div>
+<div class="flex justify-between items-center">
+<span class="font-body-md text-body-md text-on-surface-variant">Tax (10%)</span>
+<span class="font-body-md text-body-md text-on-surface">$1.25</span>
+</div>
+<hr class="border-surface-variant my-1">
+<div class="flex justify-between items-center">
+<span class="font-headline-sm text-headline-sm text-on-surface font-semibold">Total</span>
+<span class="font-headline-md text-headline-md text-primary font-bold">$13.75</span>
+</div>
+</section>
+</main>
+<!-- Sticky Order/Pay Bar -->
+<div class="fixed bottom-[88px] md:bottom-[72px] left-0 w-full px-margin-mobile py-4 bg-surface-container-lowest/90 backdrop-blur-md shadow-[0_-8px_24px_rgba(0,0,0,0.08)] z-40 border-t border-surface-variant/30 flex justify-center">
+<div class="w-full max-w-2xl flex items-center justify-between gap-4">
+<div class="flex flex-col hidden sm:flex">
+<span class="font-label-sm text-label-sm text-on-surface-variant">Total Amount</span>
+<span class="font-headline-sm text-headline-sm text-primary font-bold">$13.75</span>
+</div>
+<button class="flex-1 sm:flex-none sm:w-[200px] h-[56px] bg-primary text-on-primary font-label-md text-label-md rounded-xl shadow-[0_4px_12px_rgba(184,0,53,0.25)] hover:bg-surface-tint active:scale-95 transition-all flex items-center justify-center gap-2">
+<span class="">Pay Now</span>
+<span class="material-symbols-outlined text-[20px]">arrow_forward</span>
+</button>
+</div>
+</div>
+<!-- BottomNavBar -->
+<nav class="fixed bottom-0 left-0 w-full z-50 flex justify-around items-center px-4 py-2 pb-safe bg-surface-container-lowest shadow-[0_-4px_12px_rgba(0,0,0,0.04)] rounded-t-xl md:hidden">
+<!-- Inactive: Menu -->
+<a class="flex flex-col items-center justify-center text-on-surface-variant w-[64px] py-1 gap-1 active:scale-90 transition-all duration-200" href="#">
+<span class="material-symbols-outlined text-[24px]">home</span>
+<span class="font-label-sm text-label-sm text-[10px]">Menu</span>
+</a>
+<!-- Inactive: Tables -->
+<a class="flex flex-col items-center justify-center text-on-surface-variant w-[64px] py-1 gap-1 active:scale-90 transition-all duration-200" href="#">
+<span class="material-symbols-outlined text-[24px]">grid_view</span>
+<span class="font-label-sm text-label-sm text-[10px]">Tables</span>
+</a>
+<!-- Active: Cart -->
+<a class="flex flex-col items-center justify-center bg-primary-container text-on-primary-container rounded-full px-4 py-1 gap-1 active:scale-90 transition-all duration-200 min-w-[64px]" href="#">
+<span class="material-symbols-outlined text-[24px]" style="font-variation-settings: 'FILL' 1;">shopping_cart</span>
+<span class="font-label-sm text-label-sm text-[10px] font-semibold">Cart</span>
+</a>
+<!-- Inactive: Profile -->
+<a class="flex flex-col items-center justify-center text-on-surface-variant w-[64px] py-1 gap-1 active:scale-90 transition-all duration-200" href="#">
+<span class="material-symbols-outlined text-[24px]">person</span>
+<span class="font-label-sm text-label-sm text-[10px]">Profile</span>
+</a>
+</nav>
+<!-- Desktop Navigation Stand-in (Since BottomNav is hidden on md+) -->
+<nav class="hidden md:flex fixed top-0 right-margin-mobile h-16 items-center gap-6 z-50">
+<a class="font-label-md text-label-md text-on-surface-variant hover:text-primary transition-colors" href="#">Menu</a>
+<a class="font-label-md text-label-md text-on-surface-variant hover:text-primary transition-colors" href="#">Tables</a>
+<a class="font-label-md text-label-md text-primary flex items-center gap-2 border-b-2 border-primary h-full px-2" href="#">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">shopping_cart</span>
+            Cart
+        </a>
+<a class="font-label-md text-label-md text-on-surface-variant hover:text-primary transition-colors" href="#">Profile</a>
+</nav>
+
+
+
+
+</body></html>

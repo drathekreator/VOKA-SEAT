@@ -1,0 +1,288 @@
+<!DOCTYPE html><html class="light" lang="en" style=""><head>
+<meta charset="utf-8">
+<meta content="width=device-width, initial-scale=1.0" name="viewport">
+<title>VOKAFE - Order Queue</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet">
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "status-available": "#FFFFFF",
+                        "on-secondary-fixed-variant": "#8f0045",
+                        "secondary": "#b41b5c",
+                        "secondary-fixed-dim": "#ffb1c5",
+                        "on-tertiary": "#ffffff",
+                        "inverse-on-surface": "#ffecee",
+                        "on-tertiary-container": "#dcffdd",
+                        "secondary-container": "#fe5993",
+                        "background": "#fff8f7",
+                        "error": "#ba1a1a",
+                        "secondary-fixed": "#ffd9e1",
+                        "primary-fixed-dim": "#ffb2bf",
+                        "on-secondary": "#ffffff",
+                        "on-primary": "#ffffff",
+                        "status-out-of-stock": "#EF4444",
+                        "outline": "#8e6f74",
+                        "status-warning": "#F97316",
+                        "on-secondary-fixed": "#3f001a",
+                        "error-container": "#ffdad6",
+                        "on-surface-variant": "#5a4044",
+                        "surface-container-lowest": "#ffffff",
+                        "surface-container-high": "#ffe1e5",
+                        "tertiary-container": "#00823f",
+                        "primary-container": "#d81b60",
+                        "surface-container": "#ffe9eb",
+                        "tertiary-fixed": "#8ff9a8",
+                        "inverse-primary": "#ffb2bf",
+                        "inverse-surface": "#3e2c2f",
+                        "surface-bright": "#fff8f7",
+                        "surface-dim": "#f0d3d7",
+                        "on-error": "#ffffff",
+                        "on-primary-fixed": "#3f0016",
+                        "bg-secondary": "#F3F4F6",
+                        "tertiary": "#006630",
+                        "surface": "#fff8f7",
+                        "primary": "#b0004a",
+                        "surface-container-low": "#fff0f1",
+                        "text-primary": "#1F2937",
+                        "on-secondary-container": "#62002d",
+                        "surface-variant": "#f9dbdf",
+                        "on-tertiary-fixed-variant": "#005226",
+                        "text-secondary": "#6B7280",
+                        "surface-tint": "#bc004f",
+                        "border-soft": "#E5E7EB",
+                        "status-occupied": "#D81B60",
+                        "bg-soft-white": "#FFFFFF",
+                        "on-error-container": "#93000a",
+                        "status-low-stock": "#F59E0B",
+                        "on-primary-container": "#fff2f3",
+                        "on-background": "#27171a",
+                        "tertiary-fixed-dim": "#73dc8e",
+                        "outline-variant": "#e3bdc3",
+                        "surface-container-highest": "#f9dbdf",
+                        "primary-fixed": "#ffd9de",
+                        "status-success": "#10B981",
+                        "on-tertiary-fixed": "#00210b",
+                        "on-surface": "#27171a",
+                        "on-primary-fixed-variant": "#90003b"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "full": "9999px"
+                    },
+                    "spacing": {
+                        "sidebar-width": "240px",
+                        "container-margin": "24px",
+                        "tap-target-min": "44px",
+                        "navbar-height": "72px",
+                        "gutter": "16px"
+                    },
+                    "fontFamily": {
+                        "card-title": ["Inter"],
+                        "section-title-mobile": ["Inter"],
+                        "label": ["Inter"],
+                        "body": ["Inter"],
+                        "small-text": ["Inter"],
+                        "section-title": ["Inter"],
+                        "hero-title": ["Inter"]
+                    },
+                    "fontSize": {
+                        "card-title": ["22px", { "lineHeight": "1.4", "fontWeight": "600" }],
+                        "section-title-mobile": ["24px", { "lineHeight": "1.3", "fontWeight": "700" }],
+                        "label": ["12px", { "lineHeight": "1", "letterSpacing": "0.02em", "fontWeight": "500" }],
+                        "body": ["16px", { "lineHeight": "1.5", "fontWeight": "400" }],
+                        "small-text": ["13px", { "lineHeight": "1.5", "fontWeight": "400" }],
+                        "section-title": ["32px", { "lineHeight": "1.3", "fontWeight": "700" }],
+                        "hero-title": ["42px", { "lineHeight": "1.2", "fontWeight": "700" }]
+                    }
+                }
+            }
+        }
+    </script>
+<style data-stitch-cursor=""></style><style data-stitch-scroll-lock=""></style><style data-stitch-cursor=""></style><style data-stitch-scroll-lock=""></style><style data-stitch-cursor=""></style><style data-stitch-scroll-lock=""></style></head>
+<body class="bg-background text-on-background font-body text-body antialiased flex h-screen overflow-hidden">
+<!-- SideNavBar -->
+<aside class="fixed left-0 top-0 h-full w-[240px] bg-surface dark:bg-on-background border-r border-border-soft dark:border-outline-variant shadow-sm flex flex-col py-6 z-20">
+<div class="px-container-margin mb-8 mt-4"><img alt="VOKAFE Logo" class="h-10 w-auto mb-1" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCETdgZSu2juYC3C_b4-XYojcO-1dJdPxbfxengmST0YsniuOc2Da-JMBDk4hxxFEqtjJE54FT3TRYw_Om7u2XLFtBBBohnOtbPxLgMJW13R9Xz8cOWFF19IznvTvlp2k2w3fBf6Evrvi496FSl6C7rSGINeLZe_qWCg0737TpBLXGYQcAILOZRz_jrGBwiqbLlNCo9hmRN5rAAypBhpt8BfF_VD19eIOQvk2Le8xh8tTZ6O5zvpD0tEuiHTCw0OTA6lOHayVgtMlg">
+<p class="font-small-text text-small-text text-on-surface-variant">Smart Management</p></div>
+<nav class="flex-1 flex flex-col gap-1 px-2">
+<a class="flex items-center gap-3 px-4 py-3 text-on-surface-variant hover:text-primary dark:text-surface-variant hover:bg-surface-container-low dark:hover:bg-surface-variant transition-colors rounded-lg active:scale-95 duration-200" href="#">
+<span class="material-symbols-outlined">dashboard</span>
+<span class="font-body text-body font-medium">Dashboard</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 bg-secondary-fixed text-on-secondary-fixed border-l-4 border-primary dark:bg-primary-container dark:text-on-primary-container rounded-r-lg active:scale-95 transition-transform duration-200" href="#">
+<span class="material-symbols-outlined" style="font-variation-settings: &quot;FILL&quot; 1;">shopping_cart</span>
+<span class="font-body text-body font-medium">Orders</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 text-on-surface-variant hover:text-primary dark:text-surface-variant hover:bg-surface-container-low dark:hover:bg-surface-variant transition-colors rounded-lg active:scale-95 duration-200" href="#">
+<span class="material-symbols-outlined">table_restaurant</span>
+<span class="font-body text-body font-medium">Tablespace</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 text-on-surface-variant hover:text-primary dark:text-surface-variant hover:bg-surface-container-low dark:hover:bg-surface-variant transition-colors rounded-lg active:scale-95 duration-200" href="#">
+<span class="material-symbols-outlined">inventory_2</span>
+<span class="font-body text-body font-medium">Inventory</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 text-on-surface-variant hover:text-primary dark:text-surface-variant hover:bg-surface-container-low dark:hover:bg-surface-variant transition-colors rounded-lg active:scale-95 duration-200" href="#">
+<span class="material-symbols-outlined">analytics</span>
+<span class="font-body text-body font-medium">Analytics</span>
+</a>
+<div class="flex-1"></div>
+<a class="flex items-center gap-3 px-4 py-3 text-on-surface-variant hover:text-primary dark:text-surface-variant hover:bg-surface-container-low dark:hover:bg-surface-variant transition-colors rounded-lg active:scale-95 duration-200 mt-auto" href="#">
+<span class="material-symbols-outlined">help</span>
+<span class="font-body text-body font-medium">Support</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 text-on-surface-variant hover:text-primary dark:text-surface-variant hover:bg-surface-container-low dark:hover:bg-surface-variant transition-colors rounded-lg active:scale-95 duration-200" href="#"><span class="material-symbols-outlined">logout</span><span class="font-body text-body font-medium">Logout</span></a></nav>
+</aside>
+<!-- Main Content Area -->
+<div class="flex-1 flex flex-col ml-[240px] h-full relative">
+<!-- TopNavBar -->
+<header class="fixed top-0 right-0 left-[240px] h-navbar-height bg-surface/80 backdrop-blur-md border-b border-border-soft flex justify-between items-center px-container-margin w-[calc(100%-240px)] z-20"><div class="relative flex items-center bg-surface-container rounded-full px-4 py-2 w-72 focus-within:ring-2 focus-within:ring-primary/20">
+<span class="material-symbols-outlined text-on-surface-variant mr-2">search</span>
+<input class="bg-transparent border-none outline-none text-body w-full placeholder-on-surface-variant p-0 focus:ring-0" placeholder="Search..." type="text">
+</div><div class="flex items-center gap-6">
+
+
+</div>
+<div class="flex items-center gap-2">
+<button class="p-2 hover:bg-surface-container-high rounded-full transition-colors text-on-surface-variant">
+<span class="material-symbols-outlined">notifications</span>
+</button>
+<button class="p-2 hover:bg-surface-container-high rounded-full transition-colors text-on-surface-variant">
+<span class="material-symbols-outlined">settings</span>
+</button>
+<button class="p-2 hover:bg-surface-container-high rounded-full transition-colors text-on-surface-variant">
+<span class="material-symbols-outlined">help</span>
+</button>
+<div class="ml-2 w-10 h-10 rounded-full border border-border-soft overflow-hidden">
+<img alt="Profile" class="w-full h-full object-cover" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCkLWTqGDQAz7r7I8DDJmTcQaIeqxy7YggAAplz9fW-lrLRl9Ls1CLpVVfpxmnbb8qCgVPrsaH_UASpYRK8Wc3gqsL31VNJNE2pR_buWv5EWirYeNBeTiskI2RfqyR8abotszBG5-GiG5f18AsRO56XPqu8oWJmudR2h_Xdc9vAikkofEppM4MKM2vqAClNZT82ONbPHm5O6QpQ8k4mw9uz2ZaFGhgLW7LJr3eQRg4xM-C5b03lJEYsnrboUwZlKdrSne26eqtlh-4">
+</div>
+</div></header>
+<!-- Canvas -->
+<main class="flex-1 overflow-y-auto pt-[72px] p-container-margin bg-background">
+<!-- Header -->
+<div class="flex justify-between items-end mb-8">
+<div>
+<h2 class="font-section-title text-section-title text-on-background">Order Queue</h2>
+<p class="font-body text-body text-on-surface-variant mt-2">Manage incoming orders and assign tables.</p>
+</div>
+<div class="flex items-center gap-2 bg-surface-container-high px-4 py-2 rounded-full border border-outline-variant">
+<span class="material-symbols-outlined text-primary" style="font-variation-settings: &quot;FILL&quot; 1;">pending_actions</span>
+<span class="font-card-title text-card-title text-primary">12</span>
+<span class="font-body text-body text-on-surface-variant">Pending</span>
+</div>
+</div>
+<!-- Queue Grid -->
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+<!-- Urgent Card (>7 min) -->
+<article class="bg-surface rounded-lg border border-border-soft shadow-sm p-5 flex flex-col gap-4 relative overflow-hidden group hover:shadow-md transition-shadow">
+<div class="absolute top-0 left-0 w-full h-1 bg-status-out-of-stock"></div>
+<div class="flex justify-between items-start">
+<div>
+<span class="font-label text-label text-status-out-of-stock bg-status-out-of-stock/10 px-2 py-1 rounded-md mb-2 inline-block font-bold tracking-wider">URGENT</span>
+<h3 class="font-card-title text-card-title text-on-background">#ORD-092</h3>
+<p class="font-body text-body text-on-surface-variant">Sarah Jenkins</p>
+</div>
+<div class="flex items-center gap-1 text-status-out-of-stock">
+<span class="material-symbols-outlined">timer</span>
+<span class="font-body text-body font-bold">8:45</span>
+</div>
+</div>
+<div class="bg-surface-container-low rounded p-3 border border-border-soft flex-1">
+<ul class="font-small-text text-small-text text-on-background space-y-2">
+<li class="flex items-center gap-2"><span class="w-1.5 h-1.5 rounded-full bg-primary"></span> 1x Iced Caramel Macchiato</li>
+<li class="flex items-center gap-2"><span class="w-1.5 h-1.5 rounded-full bg-primary"></span> 1x Almond Croissant</li>
+<li class="flex items-center gap-2"><span class="w-1.5 h-1.5 rounded-full bg-primary"></span> 1x Espresso Shot (Extra)</li>
+</ul>
+</div>
+<button class="w-full bg-primary text-on-primary font-body text-body py-3 rounded-lg hover:bg-secondary-container active:scale-[0.98] transition-all flex items-center justify-center gap-2 font-medium">
+<span class="material-symbols-outlined">chair_alt</span>
+                        Assign Table
+                    </button>
+</article>
+<!-- Warning Card (3-7 min) -->
+<article class="bg-surface rounded-lg border border-border-soft shadow-sm p-5 flex flex-col gap-4 relative overflow-hidden group hover:shadow-md transition-shadow">
+<div class="absolute top-0 left-0 w-full h-1 bg-status-low-stock"></div>
+<div class="flex justify-between items-start">
+<div>
+<span class="font-label text-label text-status-low-stock bg-status-low-stock/10 px-2 py-1 rounded-md mb-2 inline-block font-bold tracking-wider">WAITING</span>
+<h3 class="font-card-title text-card-title text-on-background">#ORD-093</h3>
+<p class="font-body text-body text-on-surface-variant">Michael Chen</p>
+</div>
+<div class="flex items-center gap-1 text-status-low-stock">
+<span class="material-symbols-outlined">timer</span>
+<span class="font-body text-body font-bold">5:20</span>
+</div>
+</div>
+<div class="bg-surface-container-low rounded p-3 border border-border-soft flex-1">
+<ul class="font-small-text text-small-text text-on-background space-y-2">
+<li class="flex items-center gap-2"><span class="w-1.5 h-1.5 rounded-full bg-primary"></span> 2x Flat White</li>
+<li class="flex items-center gap-2"><span class="w-1.5 h-1.5 rounded-full bg-primary"></span> 1x Blueberry Muffin</li>
+</ul>
+</div>
+<button class="w-full bg-primary text-on-primary font-body text-body py-3 rounded-lg hover:bg-secondary-container active:scale-[0.98] transition-all flex items-center justify-center gap-2 font-medium">
+<span class="material-symbols-outlined">chair_alt</span>
+                        Assign Table
+                    </button>
+</article>
+<!-- New Card (<3 min) -->
+<article class="bg-surface rounded-lg border border-border-soft shadow-sm p-5 flex flex-col gap-4 relative overflow-hidden group hover:shadow-md transition-shadow">
+<div class="absolute top-0 left-0 w-full h-1 bg-primary"></div>
+<div class="flex justify-between items-start">
+<div>
+<span class="font-label text-label text-primary bg-primary/10 px-2 py-1 rounded-md mb-2 inline-block font-bold tracking-wider">NEW</span>
+<h3 class="font-card-title text-card-title text-on-background">#ORD-094</h3>
+<p class="font-body text-body text-on-surface-variant">Elena Rodriguez</p>
+</div>
+<div class="flex items-center gap-1 text-primary">
+<span class="material-symbols-outlined">timer</span>
+<span class="font-body text-body font-bold">1:15</span>
+</div>
+</div>
+<div class="bg-surface-container-low rounded p-3 border border-border-soft flex-1">
+<ul class="font-small-text text-small-text text-on-background space-y-2">
+<li class="flex items-center gap-2"><span class="w-1.5 h-1.5 rounded-full bg-primary"></span> 1x Matcha Latte (Oat Milk)</li>
+</ul>
+</div>
+<button class="w-full bg-primary text-on-primary font-body text-body py-3 rounded-lg hover:bg-secondary-container active:scale-[0.98] transition-all flex items-center justify-center gap-2 font-medium">
+<span class="material-symbols-outlined">chair_alt</span>
+                        Assign Table
+                    </button>
+</article>
+<!-- New Card (<3 min) -->
+<article class="bg-surface rounded-lg border border-border-soft shadow-sm p-5 flex flex-col gap-4 relative overflow-hidden group hover:shadow-md transition-shadow">
+<div class="absolute top-0 left-0 w-full h-1 bg-primary"></div>
+<div class="flex justify-between items-start">
+<div>
+<span class="font-label text-label text-primary bg-primary/10 px-2 py-1 rounded-md mb-2 inline-block font-bold tracking-wider">NEW</span>
+<h3 class="font-card-title text-card-title text-on-background">#ORD-095</h3>
+<p class="font-body text-body text-on-surface-variant">David Kim</p>
+</div>
+<div class="flex items-center gap-1 text-primary">
+<span class="material-symbols-outlined">timer</span>
+<span class="font-body text-body font-bold">0:45</span>
+</div>
+</div>
+<div class="bg-surface-container-low rounded p-3 border border-border-soft flex-1">
+<ul class="font-small-text text-small-text text-on-background space-y-2">
+<li class="flex items-center gap-2"><span class="w-1.5 h-1.5 rounded-full bg-primary"></span> 1x Cold Brew</li>
+<li class="flex items-center gap-2"><span class="w-1.5 h-1.5 rounded-full bg-primary"></span> 1x Avocado Toast</li>
+</ul>
+</div>
+<button class="w-full bg-primary text-on-primary font-body text-body py-3 rounded-lg hover:bg-secondary-container active:scale-[0.98] transition-all flex items-center justify-center gap-2 font-medium">
+<span class="material-symbols-outlined">chair_alt</span>
+                        Assign Table
+                    </button>
+</article>
+</div>
+</main>
+</div>
+
+
+</body></html>

@@ -1,0 +1,418 @@
+<!DOCTYPE html><html lang="en" style=""><head>
+<meta charset="utf-8">
+<meta content="width=device-width, initial-scale=1.0" name="viewport">
+<title>VOKAFE - Tablespace</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet">
+<script id="tailwind-config">
+        tailwind.config = {
+          darkMode: "class",
+          theme: {
+            extend: {
+              "colors": {
+                      "on-secondary-fixed-variant": "#8f0045",
+                      "status-low-stock": "#F59E0B",
+                      "primary": "#b0004a",
+                      "bg-soft-white": "#FFFFFF",
+                      "on-primary-container": "#fff2f3",
+                      "on-surface-variant": "#5a4044",
+                      "border-soft": "#E5E7EB",
+                      "surface-container": "#ffe9eb",
+                      "on-primary-fixed": "#3f0016",
+                      "on-secondary": "#ffffff",
+                      "surface-dim": "#f0d3d7",
+                      "outline-variant": "#e3bdc3",
+                      "on-error-container": "#93000a",
+                      "text-secondary": "#6B7280",
+                      "status-occupied": "#D81B60",
+                      "text-primary": "#1F2937",
+                      "inverse-on-surface": "#ffecee",
+                      "primary-fixed-dim": "#ffb2bf",
+                      "secondary-fixed-dim": "#ffb1c5",
+                      "secondary-container": "#fe5993",
+                      "tertiary": "#006630",
+                      "surface-container-high": "#ffe1e5",
+                      "on-secondary-fixed": "#3f001a",
+                      "secondary-fixed": "#ffd9e1",
+                      "on-surface": "#27171a",
+                      "background": "#fff8f7",
+                      "tertiary-container": "#00823f",
+                      "surface-container-lowest": "#ffffff",
+                      "on-background": "#27171a",
+                      "surface-variant": "#f9dbdf",
+                      "status-out-of-stock": "#EF4444",
+                      "on-primary-fixed-variant": "#90003b",
+                      "surface-container-highest": "#f9dbdf",
+                      "primary-container": "#d81b60",
+                      "tertiary-fixed-dim": "#73dc8e",
+                      "surface": "#fff8f7",
+                      "on-tertiary-container": "#dcffdd",
+                      "surface-container-low": "#fff0f1",
+                      "primary-fixed": "#ffd9de",
+                      "secondary": "#b41b5c",
+                      "error-container": "#ffdad6",
+                      "tertiary-fixed": "#8ff9a8",
+                      "surface-bright": "#fff8f7",
+                      "on-tertiary": "#ffffff",
+                      "inverse-surface": "#3e2c2f",
+                      "on-error": "#ffffff",
+                      "outline": "#8e6f74",
+                      "bg-secondary": "#F3F4F6",
+                      "status-available": "#FFFFFF",
+                      "error": "#ba1a1a",
+                      "on-primary": "#ffffff",
+                      "on-tertiary-fixed-variant": "#005226",
+                      "status-success": "#10B981",
+                      "inverse-primary": "#ffb2bf",
+                      "surface-tint": "#bc004f",
+                      "on-tertiary-fixed": "#00210b",
+                      "status-warning": "#F97316",
+                      "on-secondary-container": "#62002d"
+              },
+              "borderRadius": {
+                      "DEFAULT": "0.25rem",
+                      "lg": "0.5rem",
+                      "xl": "0.75rem",
+                      "full": "9999px"
+              },
+              "spacing": {
+                      "tap-target-min": "44px",
+                      "sidebar-width": "240px",
+                      "navbar-height": "72px",
+                      "gutter": "16px",
+                      "container-margin": "24px"
+              },
+              "fontFamily": {
+                      "hero-title": [
+                              "Inter"
+                      ],
+                      "card-title": [
+                              "Inter"
+                      ],
+                      "section-title-mobile": [
+                              "Inter"
+                      ],
+                      "small-text": [
+                              "Inter"
+                      ],
+                      "body": [
+                              "Inter"
+                      ],
+                      "section-title": [
+                              "Inter"
+                      ],
+                      "label": [
+                              "Inter"
+                      ]
+              },
+              "fontSize": {
+                      "hero-title": [
+                              "42px",
+                              {
+                                      "lineHeight": "1.2",
+                                      "fontWeight": "700"
+                              }
+                      ],
+                      "card-title": [
+                              "22px",
+                              {
+                                      "lineHeight": "1.4",
+                                      "fontWeight": "600"
+                              }
+                      ],
+                      "section-title-mobile": [
+                              "24px",
+                              {
+                                      "lineHeight": "1.3",
+                                      "fontWeight": "700"
+                              }
+                      ],
+                      "small-text": [
+                              "13px",
+                              {
+                                      "lineHeight": "1.5",
+                                      "fontWeight": "400"
+                              }
+                      ],
+                      "body": [
+                              "16px",
+                              {
+                                      "lineHeight": "1.5",
+                                      "fontWeight": "400"
+                              }
+                      ],
+                      "section-title": [
+                              "32px",
+                              {
+                                      "lineHeight": "1.3",
+                                      "fontWeight": "700"
+                              }
+                      ],
+                      "label": [
+                              "12px",
+                              {
+                                      "lineHeight": "1",
+                                      "letterSpacing": "0.02em",
+                                      "fontWeight": "500"
+                              }
+                      ]
+              }
+      },
+          },
+        }
+      </script>
+<style data-stitch-cursor=""></style><style data-stitch-scroll-lock=""></style><style data-stitch-cursor=""></style><style data-stitch-scroll-lock=""></style></head>
+<body class="bg-background text-on-background font-body antialiased min-h-screen">
+<!-- SideNavBar -->
+<nav class="fixed left-0 top-0 h-full w-[240px] bg-surface-container-low border-r border-border-soft flex flex-col py-gutter z-20">
+<div class="px-6 mb-8 mt-2">
+<h1 class="font-hero-title text-card-title font-bold text-primary"><img src="https://lh3.googleusercontent.com/aida/ADBb0ujEC3ns7BdWBrTlikIdsWMUtvU7kUMuAP7H8i0KmhatRSTDZ-VIdEpmK5sj4Z6IS_iOyWVH1wRxc9qE0N3-vxyZn_DyhkdRFCJgQMLiQjuz-gOUQu55pEato6YCmEKfpYS1dVUQVcb6qWbFhzD1dtABFxw4jiLmEhN7-WYf2yLj6H4SvLTa4Td2rpCUVX-TcilumVziytQ7iPd3bHSoVj6iPW2uIL3V-WLzTUiMSfAj5fTBcIidkaYlAOuVRVJ5cUSoZC5FJvBl" alt="VOKAFE Logo" class="h-10 object-contain"></h1>
+</div>
+<div class="flex-1 flex flex-col gap-2">
+<a class="flex items-center gap-3 px-4 py-3 text-on-surface-variant hover:text-primary hover:bg-surface-container transition-all duration-200" href="#">
+<span class="material-symbols-outlined" data-icon="dashboard">dashboard</span>
+<span class="font-body text-body font-medium">Dashboard</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 text-on-surface-variant hover:text-primary hover:bg-surface-container transition-all duration-200" href="#">
+<span class="material-symbols-outlined" data-icon="receipt_long">receipt_long</span>
+<span class="font-body text-body font-medium">Orders</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 border-l-4 border-primary bg-surface-container-high text-primary font-semibold transition-transform hover:scale-[0.98]" href="#">
+<span class="material-symbols-outlined" data-icon="table_bar" style="font-variation-settings: &quot;FILL&quot; 1;">table_bar</span>
+<span class="font-body text-body">Tablespace</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 text-on-surface-variant hover:text-primary hover:bg-surface-container transition-all duration-200" href="#">
+<span class="material-symbols-outlined" data-icon="inventory_2">inventory_2</span>
+<span class="font-body text-body font-medium">Inventory</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 text-on-surface-variant hover:text-primary hover:bg-surface-container transition-all duration-200" href="#">
+<span class="material-symbols-outlined" data-icon="analytics">analytics</span>
+<span class="font-body text-body font-medium">Analytics</span>
+</a>
+</div>
+<div class="mt-auto px-4 pb-4 border-t border-border-soft pt-4 flex flex-col gap-3">
+<div class="px-2 py-1 bg-surface-container-high rounded text-primary font-medium text-sm inline-flex items-center w-fit">
+                System Status: Live
+             </div>
+<a class="flex items-center gap-3 px-2 py-2 text-on-surface-variant hover:text-primary transition-colors" href="#">
+<span class="material-symbols-outlined text-xl" data-icon="help">help</span>
+<span class="font-body text-body font-medium">Support</span>
+</a>
+<a class="flex items-center gap-3 px-2 py-2 text-on-surface-variant hover:text-primary transition-colors" href="#">
+<span class="material-symbols-outlined text-xl" data-icon="logout">logout</span>
+<span class="font-body text-body font-medium">Logout</span>
+</a>
+</div>
+<div class="mt-auto px-4 pb-4 border-t border-border-soft pt-4 flex flex-col gap-3">
+</div></nav>
+<!-- TopNavBar -->
+<header class="fixed top-0 right-0 left-[240px] h-navbar-height bg-surface/80 backdrop-blur-md border-b border-border-soft flex items-center px-container-margin w-[calc(100%-240px)] z-10 justify-between">
+<div class="flex items-center flex-1 max-w-xl">
+<div class="relative w-full focus-within:ring-2 focus-within:ring-primary/20 rounded-lg">
+<span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary select-none">search</span>
+<input class="w-full pl-10 pr-4 py-2 border border-border-soft rounded-lg bg-background-light text-text-primary focus:outline-none focus:border-primary font-body text-small-text" placeholder="Search tables, orders, or reports..." type="text">
+</div>
+</div>
+<div class="flex items-center gap-2 text-on-surface-variant ml-8">
+<button class="hover:bg-surface-container-high rounded-full p-2 transition-all text-on-surface-variant hover:text-primary">
+<span class="material-symbols-outlined" data-icon="notifications">notifications</span>
+</button>
+<button class="hover:bg-surface-container-high rounded-full p-2 transition-all text-on-surface-variant hover:text-primary">
+<span class="material-symbols-outlined" data-icon="settings">settings</span>
+</button>
+<button class="hover:bg-surface-container-high rounded-full p-2 transition-all text-on-surface-variant hover:text-primary">
+<span class="material-symbols-outlined" data-icon="help">help</span>
+</button>
+<button class="ml-4 rounded-full overflow-hidden border border-border-soft w-10 h-10 shadow-sm hover:ring-2 hover:ring-primary/20 transition-all">
+<img alt="Admin Profile" class="w-full h-full object-cover" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBu2Hk_Fro16pms6Jj_rRo6KUhZ_aUG3bDHP1oLrtzaqZqLHFu45-9oDigjrU63bVAylzGt4l9FqA07o0Bb0x4Ajjnru7XnHsTnqMC2YL3yAz2UQ8ymmfCxxfVSVrlWR1ypFCapkY2Wrwn3CRnrtiUl8DwynuTSzSPiaS3V-MDQqxyJil8S9NepK9Tg6OG-RXL8eeIrzkg-cDtd_hGdFzIXVmF_629OA6I-hEezWdyjWCLxl_yVl2IddKlq5WCGnySW0SbBocXq3-s">
+</button>
+</div>
+</header>
+<!-- Main Content -->
+<main class="ml-[240px] pt-navbar-height min-h-screen bg-bg-soft-white p-8">
+<!-- Page Header -->
+<div class="flex justify-between items-end mb-8">
+<div>
+<h2 class="font-section-title text-section-title text-text-primary mb-1">Tablespace</h2>
+<p class="font-body text-body text-text-secondary">Real-time Table Order Availability Status</p>
+</div>
+<div class="flex gap-4">
+<button class="px-4 py-2 border-2 border-primary text-primary font-medium rounded-DEFAULT hover:bg-surface-container transition-colors font-body text-body">
+                    Export Report
+                </button>
+<button class="px-4 py-2 bg-primary text-bg-soft-white font-medium rounded-DEFAULT hover:bg-primary-container transition-colors font-body text-body shadow-sm">
+                    Restock Alert
+                </button>
+</div>
+</div>
+<!-- Map Card -->
+<div class="bg-bg-soft-white border border-border-soft rounded-lg p-6 shadow-sm">
+<div class="flex justify-between items-center mb-6">
+<h3 class="font-card-title text-card-title text-text-primary uppercase tracking-wide">VOKAFE'S MAP</h3>
+<!-- Legend -->
+<div class="flex items-center gap-3">
+<span class="font-body text-small-text text-text-secondary">Status</span>
+<div class="flex border border-border-soft rounded overflow-hidden">
+<div class="px-3 py-1 bg-status-occupied text-bg-soft-white font-label text-label flex items-center gap-1">
+                            Occupied
+                        </div>
+<div class="px-3 py-1 bg-bg-secondary text-text-primary font-label text-label flex items-center gap-1">
+                            Available
+                        </div>
+</div>
+</div>
+</div>
+<!-- Map Container -->
+<div class="relative border border-border-soft rounded-lg p-8 bg-surface-container-lowest min-h-[600px] flex flex-col justify-between">
+<!-- Top Section (Tangga) -->
+<div class="flex justify-end pr-8 relative mb-12">
+<div class="absolute right-full top-1/2 -translate-y-1/2 -rotate-90 origin-right mr-4">
+<span class="font-card-title text-card-title tracking-wider text-text-primary whitespace-nowrap">Kursi Tangga</span>
+</div>
+<div class="grid grid-cols-6 gap-2">
+<!-- Row 1 -->
+<div class="w-10 h-10 border border-border-soft flex items-center justify-center text-text-secondary font-label text-label bg-status-available">24</div>
+<div class="w-10 h-10 border border-border-soft flex items-center justify-center text-text-secondary font-label text-label bg-status-available">23</div>
+<div class="w-10 h-10 border border-border-soft flex items-center justify-center text-text-secondary font-label text-label bg-status-available">22</div>
+<div class="w-10 h-10 flex items-center justify-center text-bg-soft-white font-label text-label bg-status-occupied shadow-sm">21</div>
+<div class="w-10 h-10 border border-border-soft flex items-center justify-center text-text-secondary font-label text-label bg-status-available">24</div>
+<div class="w-10 h-10 border border-border-soft flex items-center justify-center text-text-secondary font-label text-label bg-status-available">23</div>
+<div class="w-10 h-10 border border-border-soft flex items-center justify-center text-text-secondary font-label text-label bg-status-available">22</div>
+<div class="w-10 h-10 flex items-center justify-center text-bg-soft-white font-label text-label bg-status-occupied shadow-sm">21</div>
+<!-- Row 2 -->
+<div class="w-10 h-10 border border-border-soft flex items-center justify-center text-text-secondary font-label text-label bg-status-available">18</div>
+<div class="w-10 h-10 border border-border-soft flex items-center justify-center text-text-secondary font-label text-label bg-status-available">19</div>
+<div class="w-10 h-10 border border-border-soft flex items-center justify-center text-text-secondary font-label text-label bg-status-available">20</div>
+<div class="w-10 h-10 border border-border-soft flex items-center justify-center text-text-secondary font-label text-label bg-status-available">20</div>
+<div class="w-10 h-10 border border-border-soft flex items-center justify-center text-text-secondary font-label text-label bg-status-available">18</div>
+<div class="w-10 h-10 border border-border-soft flex items-center justify-center text-text-secondary font-label text-label bg-status-available">19</div>
+<div class="w-10 h-10 border border-border-soft flex items-center justify-center text-text-secondary font-label text-label bg-status-available">20</div>
+<div class="w-10 h-10 border border-border-soft flex items-center justify-center text-text-secondary font-label text-label bg-status-available">20</div>
+<!-- Row 3 -->
+<div class="w-10 h-10 border border-border-soft flex items-center justify-center text-text-secondary font-label text-label bg-status-available">17</div>
+<div class="w-10 h-10 border border-border-soft flex items-center justify-center text-text-secondary font-label text-label bg-status-available">16</div>
+<div class="w-10 h-10 flex items-center justify-center text-bg-soft-white font-label text-label bg-status-occupied shadow-sm">15</div>
+<div class="w-10 h-10 border border-border-soft flex items-center justify-center text-text-secondary font-label text-label bg-status-available">14</div>
+<div class="w-10 h-10 border border-border-soft flex items-center justify-center text-text-secondary font-label text-label bg-status-available">17</div>
+<div class="w-10 h-10 border border-border-soft flex items-center justify-center text-text-secondary font-label text-label bg-status-available">16</div>
+<div class="w-10 h-10 flex items-center justify-center text-bg-soft-white font-label text-label bg-status-occupied shadow-sm">15</div>
+<div class="w-10 h-10 border border-border-soft flex items-center justify-center text-text-secondary font-label text-label bg-status-available">14</div>
+<!-- Row 4 -->
+<div class="w-10 h-10 border border-border-soft flex items-center justify-center text-text-secondary font-label text-label bg-status-available">11</div>
+<div class="w-10 h-10 border border-border-soft flex items-center justify-center text-text-secondary font-label text-label bg-status-available">12</div>
+<div class="w-10 h-10 border border-border-soft flex items-center justify-center text-text-secondary font-label text-label bg-status-available">12</div>
+<div class="w-10 h-10 border border-border-soft flex items-center justify-center text-text-secondary font-label text-label bg-status-available">13</div>
+<div class="w-10 h-10 border border-border-soft flex items-center justify-center text-text-secondary font-label text-label bg-status-available">11</div>
+<div class="w-10 h-10 border border-border-soft flex items-center justify-center text-text-secondary font-label text-label bg-status-available">12</div>
+<div class="w-10 h-10 border border-border-soft flex items-center justify-center text-text-secondary font-label text-label bg-status-available">12</div>
+<div class="w-10 h-10 border border-border-soft flex items-center justify-center text-text-secondary font-label text-label bg-status-available">13</div>
+</div>
+</div>
+<!-- Main Floor Area -->
+<div class="flex justify-between items-start flex-1 relative mt-10">
+<!-- Left Section (Barista) -->
+<div class="flex">
+<div class="w-24 bg-[#E2E8F0] border border-[#CBD5E1] rounded flex items-center justify-center relative min-h-[400px]">
+<span class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 -rotate-90 origin-center whitespace-nowrap text-[#64748B] font-label text-label tracking-widest">BARISTA DAN KASIR</span>
+</div>
+<div class="flex flex-col gap-4 ml-4 mt-16">
+<div class="flex items-center gap-2">
+<div class="w-10 h-10 border border-[#CBD5E1] flex items-center justify-center text-[#64748B] font-label text-label bg-bg-soft-white">S</div>
+<div class="w-12 h-12 bg-[#926019] flex items-center justify-center text-bg-soft-white font-body text-body rounded-sm shadow-sm">1</div>
+</div>
+<div class="flex items-center gap-2">
+<div class="w-10 h-10 flex items-center justify-center text-bg-soft-white font-label text-label bg-status-occupied shadow-sm">S</div>
+<div class="w-12 h-12 bg-[#926019] flex items-center justify-center text-bg-soft-white font-body text-body rounded-sm shadow-sm">2</div>
+</div>
+<div class="flex items-center gap-2">
+<div class="w-10 h-10 border border-[#CBD5E1] flex items-center justify-center text-[#64748B] font-label text-label bg-bg-soft-white">S</div>
+<div class="w-12 h-12 bg-[#926019] flex items-center justify-center text-bg-soft-white font-body text-body rounded-sm shadow-sm">3</div>
+</div>
+<div class="flex items-center gap-2">
+<div class="w-10 h-10 border border-[#CBD5E1] flex items-center justify-center text-[#64748B] font-label text-label bg-bg-soft-white">S</div>
+<div class="w-12 h-12 bg-[#926019] flex items-center justify-center text-bg-soft-white font-body text-body rounded-sm shadow-sm">4</div>
+</div>
+</div>
+</div>
+<!-- Center Section (Tables) -->
+<div class="flex-1 flex flex-col gap-16 px-16">
+<!-- Top Row Tables -->
+<div class="flex justify-around items-end">
+<!-- Table 5 -->
+<div class="flex flex-col items-center gap-2">
+<div class="w-8 h-8 border border-[#CBD5E1] flex items-center justify-center text-[#64748B] font-label text-[10px] bg-bg-soft-white">S</div>
+<div class="w-16 h-24 bg-[#926019] flex items-center justify-center text-bg-soft-white font-body text-body rounded-sm shadow-sm">5</div>
+<div class="w-8 h-8 border border-[#CBD5E1] flex items-center justify-center text-[#64748B] font-label text-[10px] bg-bg-soft-white">S</div>
+</div>
+<!-- Table 7 -->
+<div class="flex flex-col items-center gap-2 mb-4">
+<div class="flex gap-2">
+<div class="w-8 h-8 flex items-center justify-center text-bg-soft-white font-label text-[10px] bg-status-occupied shadow-sm">S</div>
+<div class="w-8 h-8 flex items-center justify-center text-bg-soft-white font-label text-[10px] bg-status-occupied shadow-sm">S</div>
+</div>
+<div class="w-36 h-20 bg-[#926019] flex items-center justify-center text-bg-soft-white font-body text-body rounded-sm shadow-sm">7</div>
+<div class="flex gap-2">
+<div class="w-8 h-8 flex items-center justify-center text-bg-soft-white font-label text-[10px] bg-status-occupied shadow-sm">S</div>
+<div class="w-8 h-8 flex items-center justify-center text-bg-soft-white font-label text-[10px] bg-status-occupied shadow-sm">S</div>
+</div>
+</div>
+<!-- Table 8 -->
+<div class="flex flex-col items-center gap-2 mb-4">
+<div class="flex gap-2">
+<div class="w-8 h-8 border border-[#CBD5E1] flex items-center justify-center text-[#64748B] font-label text-[10px] bg-bg-soft-white">S</div>
+<div class="w-8 h-8 border border-[#CBD5E1] flex items-center justify-center text-[#64748B] font-label text-[10px] bg-bg-soft-white">S</div>
+</div>
+<div class="w-36 h-20 bg-[#926019] flex items-center justify-center text-bg-soft-white font-body text-body rounded-sm shadow-sm">8</div>
+<div class="flex gap-2">
+<div class="w-8 h-8 border border-[#CBD5E1] flex items-center justify-center text-[#64748B] font-label text-[10px] bg-bg-soft-white">S</div>
+<div class="w-8 h-8 border border-[#CBD5E1] flex items-center justify-center text-[#64748B] font-label text-[10px] bg-bg-soft-white">S</div>
+</div>
+</div>
+</div>
+<!-- Bottom Row Tables -->
+<div class="flex justify-around items-start">
+<!-- Table 6 -->
+<div class="flex flex-col items-center gap-2">
+<div class="w-8 h-8 border border-[#CBD5E1] flex items-center justify-center text-[#64748B] font-label text-[10px] bg-bg-soft-white">S</div>
+<div class="w-16 h-24 bg-[#926019] flex items-center justify-center text-bg-soft-white font-body text-body rounded-sm shadow-sm">6</div>
+<div class="w-8 h-8 border border-[#CBD5E1] flex items-center justify-center text-[#64748B] font-label text-[10px] bg-bg-soft-white">S</div>
+</div>
+<!-- Table 9 -->
+<div class="flex flex-col items-center gap-2 mt-4">
+<div class="flex gap-2">
+<div class="w-8 h-8 border border-[#CBD5E1] flex items-center justify-center text-[#64748B] font-label text-[10px] bg-bg-soft-white">S</div>
+<div class="w-8 h-8 border border-[#CBD5E1] flex items-center justify-center text-[#64748B] font-label text-[10px] bg-bg-soft-white">S</div>
+</div>
+<div class="w-36 h-20 bg-[#926019] flex items-center justify-center text-bg-soft-white font-body text-body rounded-sm shadow-sm">9</div>
+<div class="flex gap-2">
+<div class="w-8 h-8 border border-[#CBD5E1] flex items-center justify-center text-[#64748B] font-label text-[10px] bg-bg-soft-white">S</div>
+<div class="w-8 h-8 border border-[#CBD5E1] flex items-center justify-center text-[#64748B] font-label text-[10px] bg-bg-soft-white">S</div>
+</div>
+</div>
+<!-- Table 10 -->
+<div class="flex flex-col items-center gap-2 mt-4">
+<div class="flex gap-2">
+<div class="w-8 h-8 border border-[#CBD5E1] flex items-center justify-center text-[#64748B] font-label text-[10px] bg-bg-soft-white">S</div>
+<div class="w-8 h-8 border border-[#CBD5E1] flex items-center justify-center text-[#64748B] font-label text-[10px] bg-bg-soft-white">S</div>
+</div>
+<div class="w-36 h-20 bg-[#926019] flex items-center justify-center text-bg-soft-white font-body text-body rounded-sm shadow-sm">10</div>
+<div class="flex gap-2">
+<div class="w-8 h-8 border border-[#CBD5E1] flex items-center justify-center text-[#64748B] font-label text-[10px] bg-bg-soft-white">S</div>
+<div class="w-8 h-8 border border-[#CBD5E1] flex items-center justify-center text-[#64748B] font-label text-[10px] bg-bg-soft-white">S</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+<!-- Bottom Label -->
+<div class="absolute bottom-4 left-0 right-0 text-center border-t border-dashed border-[#CBD5E1] pt-4 mx-8">
+<span class="text-[#94A3B8] tracking-[0.3em] font-label text-sm uppercase">JALAN UTAMA</span>
+</div>
+</div>
+</div>
+</main>
+
+
+</body></html>
