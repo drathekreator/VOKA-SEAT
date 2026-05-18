@@ -9,8 +9,10 @@ export default defineConfig({
     path: "prisma/migrations",
     // Prisma 7 reads `migrations.seed` (the legacy `prisma.seed` block in
     // package.json is ignored). The seed script is plain TypeScript so we
-    // run it through ts-node, which is already in devDependencies.
-    seed: "npx ts-node prisma/seed.ts",
+    // run it through ts-node. `--transpile-only` skips type-checking
+    // (the prod tsconfig doesn't include @types/node in `types`, and we
+    // don't need a full type-check just to run a one-off seeder).
+    seed: "npx ts-node --transpile-only prisma/seed.ts",
   },
   datasource: {
     url: process.env["DATABASE_URL"],
