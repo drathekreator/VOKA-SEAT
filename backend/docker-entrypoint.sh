@@ -16,7 +16,10 @@
 set -e
 
 echo "📦 [entrypoint] Syncing Prisma schema with database..."
-npx prisma db push --skip-generate --accept-data-loss
+# Note: Prisma 7 dropped the legacy `--skip-generate` flag. The client
+# was already generated at build time inside the deps stage, so we
+# just push the schema (idempotent — no-op if already in sync).
+npx prisma db push --accept-data-loss
 
 # Conditional first-boot seed: only when seats table is empty.
 SEAT_COUNT=$(node -e "
