@@ -8,14 +8,13 @@ export default defineConfig({
   migrations: {
     path: "prisma/migrations",
     // Prisma 7 reads `migrations.seed` (the legacy `prisma.seed` block in
-    // package.json is ignored). The seed script is plain TypeScript so we
-    // run it through ts-node. We pass inline compiler options to override
-    // the project's strict tsconfig.json:
-    //   - `--transpile-only` skips full type-checking (faster + avoids
-    //     missing @types/node noise)
-    //   - `--compiler-options` overrides rootDir/module so ts-node won't
-    //     barf about prisma/seed.ts living outside src/
-    seed: 'npx ts-node --transpile-only --compiler-options=\'{"rootDir":"./","module":"commonjs","moduleResolution":"node","verbatimModuleSyntax":false,"isolatedModules":false}\' prisma/seed.ts',
+    // package.json is ignored). The seed script lives in `prisma/seed.ts`
+    // which the project tsconfig.json doesn't cover (its implied rootDir
+    // is `src/`). We point ts-node at a dedicated `prisma/tsconfig.json`
+    // so it gets a self-contained config — no rootDir / @types/node /
+    // verbatimModuleSyntax friction. `--transpile-only` skips full
+    // type-checking which is fine for a one-off seeder.
+    seed: "npx ts-node --transpile-only --project prisma/tsconfig.json prisma/seed.ts",
   },
   datasource: {
     url: process.env["DATABASE_URL"],
