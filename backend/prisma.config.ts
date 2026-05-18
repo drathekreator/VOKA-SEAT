@@ -7,6 +7,10 @@ export default defineConfig({
   schema: "prisma/schema.prisma",
   migrations: {
     path: "prisma/migrations",
+    // Prisma 7 reads `migrations.seed` (the legacy `prisma.seed` block in
+    // package.json is ignored). The seed script is plain TypeScript so we
+    // run it through ts-node, which is already in devDependencies.
+    seed: "npx ts-node prisma/seed.ts",
   },
   datasource: {
     url: process.env["DATABASE_URL"],
