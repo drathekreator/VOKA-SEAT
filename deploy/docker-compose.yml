@@ -1,0 +1,133 @@
+# =====================================================================
+# VOKA-SEAT — Production Docker Compose (GCP shared instance)
+#
+# Berdampingan dengan ALTIVEX di host yang sama:
+#   - ALTIVEX punya: 80, 443 (nginx host), 1883, 8080
+#   - VOKA-SEAT pakai: 1884 (MQTT publik), 127.0.0.1:3100 (backend),
+#                      127.0.0.1:8090 (frontend)
+#
+# Konvensi brief:
+#   - Network eksplisit: voka_seat_default
+#   - Volume prefix:    voka_seat_*
+#   - Container prefix: voka_seat_*
+#   - Backend & frontend bind ke 127.0.0.1 (cuma nginx host yang akses)
+#   - Mosquitto publish 1884 ke 0.0.0.0 (ESP32 publik via internet)
+#
+# Required env (lihat deploy/.env.example):
+#   POSTGRES_PASSWORD, JWT_SECRET, PUBLIC_DOMAIN_CUSTOMER,
+#   PUBLIC_DOMAIN_ADMIN, ADMIN_USERNAME, ADMIN_PASSWORD
+# =====================================================================
+
+services:
+  mosquitto:
+    image: eclipse-mosquitto:2.0
+    container_name: voka_seat_mosquitto
+    restart: unless-stopped
+    networks:
+      - default
+    # Publish MQTT 1883 (container) → 1884 (host, all interfaces) supaya
+    # ESP32 dari jaringan publik bisa konek ke broker. WebSocket listener
+    # 9001 → 9002 host (kalau perlu MQTT-over-WS dari browser).
+    ports:
+      - "0.0.0.0:1884:1883"      # MQTT TCP — publik untuk ESP32
+      - "127.0.0.1:9002:9001"    # MQTT WebSocket — local-only
+    volumes:
+      - ./mosquitto/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
+      - voka_seat_mosquitto_data:/mosquitto/data
+      - voka_seat_mosquitto_log:/mosquitto/log
+    healthcheck:
+      test: ["CMD-SHELL", "mosquitto_sub -h localhost -p 1883 -t '$$SYS/broker/version' -C 1 -W 3 || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: voka_seat_postgres
+    restart: unless-stopped
+    networks:
+      - default
+    environment:
+      POSTGRES_USER: voka
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD required}
+      POSTGRES_DB: voka_seat_db
+    # Tidak publish 5432 ke host — backend akses via voka_seat_postgres:5432
+    volumes:
+      - voka_seat_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U voka -d voka_seat_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  backend:
+    build:
+      context: ../backend
+      dockerfile: Dockerfile
+    image: voka-seat-backend:local
+    container_name: voka_seat_backend
+    restart: unless-stopped
+    networks:
+      - default
+    environment:
+      NODE_ENV: production
+      PORT: "3000"
+      DATABASE_URL: postgresql://voka:${POSTGRES_PASSWORD}@voka_seat_postgres:5432/voka_seat_db
+      MQTT_URL: mqtt://voka_seat_mosquitto:1883
+      MQTT_BROKER: mqtt://voka_seat_mosquitto:1883
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET required}
+      # CORS: terima request dari kedua subdomain.
+      CORS_ORIGIN: https://${PUBLIC_DOMAIN_CUSTOMER},https://${PUBLIC_DOMAIN_ADMIN}
+      ADMIN_USERNAME: ${ADMIN_USERNAME:?ADMIN_USERNAME required}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:?ADMIN_PASSWORD required}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      mosquitto:
+        condition: service_healthy
+    # Bind ke loopback saja — cuma nginx host yang boleh akses.
+    ports:
+      - "127.0.0.1:3100:3000"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:3000/api/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  frontend:
+    build:
+      context: ../frontend
+      dockerfile: Dockerfile
+      # Build-time API URL = subdomain customer (anchor utama untuk frontend).
+      # Browser akan resolve /api dan /socket.io ke domain ini, lalu nginx
+      # host meneruskan ke backend container 127.0.0.1:3100.
+      args:
+        VITE_API_URL: https://${PUBLIC_DOMAIN_CUSTOMER}
+        VITE_API_BASE_URL: https://${PUBLIC_DOMAIN_CUSTOMER}
+    image: voka-seat-frontend:local
+    container_name: voka_seat_frontend
+    restart: unless-stopped
+    networks:
+      - default
+    depends_on:
+      backend:
+        condition: service_healthy
+    # Bind ke loopback saja — cuma nginx host yang boleh akses.
+    ports:
+      - "127.0.0.1:8090:80"
+
+networks:
+  default:
+    name: voka_seat_default
+    driver: bridge
+
+volumes:
+  voka_seat_pgdata:
+    name: voka_seat_pgdata
+  voka_seat_mosquitto_data:
+    name: voka_seat_mosquitto_data
+  voka_seat_mosquitto_log:
+    name: voka_seat_mosquitto_log
