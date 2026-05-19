@@ -37,6 +37,11 @@ import OrderStatusPill, {
   getStatusPillStyle,
 } from '../components/OrderStatusPill';
 import { formatIDR } from './MenuView';
+import { useOrderUpdates } from '../../hooks/useOrderUpdates';
+import {
+  notifyOrderStatusChange,
+  requestOrderNotificationPermission,
+} from '../utils/orderNotifications';
 
 const API_BASE_URL =
   (import.meta.env.VITE_API_BASE_URL as string | undefined) ??
@@ -131,12 +136,49 @@ export default function OrderDetailView({
   orderId,
   onBack,
 }: OrderDetailViewProps) {
-  const { token, logout } = useAuth();
+  const { token, user, logout } = useAuth();
 
   const [order, setOrder] = useState<OrderDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [notFound, setNotFound] = useState(false);
+
+  // One-shot permission prompt the first time this view mounts.
+  useEffect(() => {
+    void requestOrderNotificationPermission();
+  }, []);
+
+  // Live status update for the *currently displayed* order. We patch the
+  // local `order` object so the pill and timeline reflect the new status
+  // without a full refetch. We also append a synthetic statusHistory
+  // entry using the broadcast's updatedAt — when the user refreshes (or
+  // backs in/out of the view), the next fetch will replace it with the
+  // canonical entry from the database. Only fires when the order belongs
+  // to the authenticated user.
+  useOrderUpdates((update) => {
+    if (update.orderId !== orderId) return;
+    if (!user || update.userEmail !== user.email) return;
+
+    setOrder((prev) =>
+      prev
+        ? {
+            ...prev,
+            status: update.status,
+            seatId: update.seatId,
+            statusHistory: [
+              ...prev.statusHistory,
+              {
+                id: -Date.now(), // negative synthetic id, no DB collision
+                status: update.status,
+                changedAt: update.updatedAt,
+              },
+            ],
+          }
+        : prev,
+    );
+
+    notifyOrderStatusChange(update.orderId, update.status);
+  });
 
   const fetchOrder = useCallback(
     async (authToken: string) => {

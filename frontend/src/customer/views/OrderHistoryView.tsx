@@ -34,6 +34,11 @@ import { useCallback, useEffect, useState } from 'react';
 import { useAuth } from '../auth/useAuth';
 import OrderStatusPill, { type OrderStatus } from '../components/OrderStatusPill';
 import { formatIDR } from './MenuView';
+import { useOrderUpdates } from '../../hooks/useOrderUpdates';
+import {
+  notifyOrderStatusChange,
+  requestOrderNotificationPermission,
+} from '../utils/orderNotifications';
 
 const API_BASE_URL =
   (import.meta.env.VITE_API_BASE_URL as string | undefined) ??
@@ -112,13 +117,36 @@ export default function OrderHistoryView({
   onSelectOrder,
   onBrowseMenu,
 }: OrderHistoryViewProps) {
-  const { token, logout } = useAuth();
+  const { token, user, logout } = useAuth();
 
   const [orders, setOrders] = useState<OrderHistoryEntry[]>([]);
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  // One-shot permission prompt the first time this view mounts. Browsers
+  // only ever show the prompt once, so calling on every mount is safe.
+  useEffect(() => {
+    void requestOrderNotificationPermission();
+  }, []);
+
+  // Live status updates: when the backend broadcasts an order_status_update
+  // for an order that belongs to this customer, patch the local list in
+  // place and (for meaningful transitions) fire a browser notification.
+  useOrderUpdates((update) => {
+    if (!user || update.userEmail !== user.email) return;
+
+    setOrders((prev) =>
+      prev.map((order) =>
+        order.id === update.orderId
+          ? { ...order, status: update.status }
+          : order,
+      ),
+    );
+
+    notifyOrderStatusChange(update.orderId, update.status);
+  });
 
   const fetchHistory = useCallback(
     async (page: number, authToken: string) => {

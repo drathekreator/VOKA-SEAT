@@ -12,12 +12,149 @@ interface InventoryItem {
   updatedAt: string;
 }
 
+interface EditModalProps {
+  item: InventoryItem;
+  onClose: () => void;
+  onSave: (id: number, payload: { quantity: number; minimumThreshold: number }) => Promise<void>;
+}
+
+/**
+ * Modal that lets the admin update both the current quantity and the
+ * minimum-threshold of an inventory item in a single round-trip. Replaces
+ * the previous inline-edit UI which only allowed quantity edits and gave
+ * no indication that changes had been saved.
+ *
+ * Validation is intentionally loose (only "non-negative integer") because
+ * the backend already enforces full validation on the PATCH endpoint.
+ */
+const EditModal: React.FC<EditModalProps> = ({ item, onClose, onSave }) => {
+  const [quantity, setQuantity] = useState(String(item.quantity));
+  const [minThreshold, setMinThreshold] = useState(String(item.minimumThreshold));
+  const [saving, setSaving] = useState(false);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
+  const handleSave = async () => {
+    const q = parseInt(quantity, 10);
+    const t = parseInt(minThreshold, 10);
+    if (isNaN(q) || q < 0 || isNaN(t) || t < 0) {
+      setErrorMsg('Quantity and threshold must be non-negative integers.');
+      return;
+    }
+    setErrorMsg(null);
+    setSaving(true);
+    try {
+      await onSave(item.id, { quantity: q, minimumThreshold: t });
+      onClose();
+    } catch (err) {
+      setErrorMsg(err instanceof Error ? err.message : 'Save failed');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="inventory-edit-title"
+      data-testid="inventory-edit-modal"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
+    >
+      <div className="bg-surface rounded-xl shadow-xl max-w-md w-full p-6 flex flex-col gap-4">
+        <header className="flex items-start justify-between gap-3">
+          <div>
+            <h3
+              id="inventory-edit-title"
+              className="font-section-title text-section-title text-on-background"
+            >
+              Edit Inventory
+            </h3>
+            <p className="font-body text-body text-on-surface-variant">
+              {item.itemName} ({item.unit})
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Close"
+            className="w-8 h-8 rounded-full hover:bg-surface-container-high flex items-center justify-center text-on-surface-variant"
+          >
+            <span className="material-symbols-outlined">close</span>
+          </button>
+        </header>
+
+        <div className="flex flex-col gap-3">
+          <label className="flex flex-col gap-1">
+            <span className="font-label text-label text-on-surface-variant">
+              Current stock
+            </span>
+            <input
+              type="number"
+              min="0"
+              value={quantity}
+              onChange={(e) => setQuantity(e.target.value)}
+              data-testid="inventory-edit-quantity"
+              className="px-3 py-2 border border-outline-variant rounded-lg font-body text-body bg-surface-container-low focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary"
+            />
+          </label>
+
+          <label className="flex flex-col gap-1">
+            <span className="font-label text-label text-on-surface-variant">
+              Minimum threshold
+            </span>
+            <input
+              type="number"
+              min="0"
+              value={minThreshold}
+              onChange={(e) => setMinThreshold(e.target.value)}
+              data-testid="inventory-edit-min-threshold"
+              className="px-3 py-2 border border-outline-variant rounded-lg font-body text-body bg-surface-container-low focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary"
+            />
+          </label>
+
+          {errorMsg && (
+            <p
+              role="alert"
+              data-testid="inventory-edit-error"
+              className="text-sm text-status-out-of-stock"
+            >
+              {errorMsg}
+            </p>
+          )}
+        </div>
+
+        <footer className="flex justify-end gap-2 pt-2">
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={saving}
+            className="px-4 py-2 rounded-lg border border-outline-variant text-on-surface-variant hover:bg-surface-container-high disabled:opacity-50"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={handleSave}
+            disabled={saving}
+            data-testid="inventory-edit-save"
+            className="px-4 py-2 bg-primary text-on-primary rounded-lg disabled:opacity-50 active:scale-[0.98] transition-transform"
+          >
+            {saving ? 'Saving…' : 'Save'}
+          </button>
+        </footer>
+      </div>
+    </div>
+  );
+};
+
 const Inventory: React.FC = () => {
   const [items, setItems] = useState<InventoryItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [editingId, setEditingId] = useState<number | null>(null);
-  const [editValue, setEditValue] = useState<string>('');
+  const [editingItem, setEditingItem] = useState<InventoryItem | null>(null);
 
   const fetchInventory = useCallback(async () => {
     try {
@@ -41,52 +178,22 @@ const Inventory: React.FC = () => {
     fetchInventory();
   }, [fetchInventory]);
 
-  const handleUpdateQuantity = async (id: number, newQuantity: number) => {
-    try {
+  const handleSave = useCallback(
+    async (id: number, payload: { quantity: number; minimumThreshold: number }) => {
       const res = await adminFetch(`/api/inventory/${id}`, {
         method: 'PATCH',
-        body: JSON.stringify({ quantity: newQuantity }),
+        body: JSON.stringify(payload),
       });
-
       if (!res.ok) {
         throw new Error(`Failed to update inventory (${res.status})`);
       }
-
       const updated: InventoryItem = await res.json();
       setItems((prev) =>
-        prev.map((item) => (item.id === updated.id ? updated : item))
+        prev.map((item) => (item.id === updated.id ? updated : item)),
       );
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to update inventory');
-    } finally {
-      setEditingId(null);
-      setEditValue('');
-    }
-  };
-
-  const handleEditStart = (item: InventoryItem) => {
-    setEditingId(item.id);
-    setEditValue(String(item.quantity));
-  };
-
-  const handleEditConfirm = (id: number) => {
-    const parsed = parseInt(editValue, 10);
-    if (!isNaN(parsed) && parsed >= 0) {
-      handleUpdateQuantity(id, parsed);
-    } else {
-      setEditingId(null);
-      setEditValue('');
-    }
-  };
-
-  const handleEditKeyDown = (e: React.KeyboardEvent, id: number) => {
-    if (e.key === 'Enter') {
-      handleEditConfirm(id);
-    } else if (e.key === 'Escape') {
-      setEditingId(null);
-      setEditValue('');
-    }
-  };
+    },
+    [],
+  );
 
   // Items that need restocking (below threshold)
   const restockItems = items.filter(
@@ -191,6 +298,9 @@ const Inventory: React.FC = () => {
               <th className="text-center px-6 py-4 font-label text-label text-on-surface-variant uppercase tracking-wider">
                 Status
               </th>
+              <th className="text-right px-6 py-4 font-label text-label text-on-surface-variant uppercase tracking-wider">
+                Actions
+              </th>
             </tr>
           </thead>
           <tbody>
@@ -212,6 +322,7 @@ const Inventory: React.FC = () => {
               return (
                 <tr
                   key={item.id}
+                  data-testid={`inventory-row-${item.id}`}
                   className={`border-b border-border-soft last:border-b-0 hover:bg-surface-container-low transition-colors ${rowBg}`}
                 >
                   <td className={`px-6 py-4 font-body text-body ${textColor} font-medium`}>
@@ -221,28 +332,7 @@ const Inventory: React.FC = () => {
                     {item.unit}
                   </td>
                   <td className={`px-6 py-4 font-body text-body text-right ${textColor} font-medium`}>
-                    {editingId === item.id ? (
-                      <input
-                        type="number"
-                        min="0"
-                        value={editValue}
-                        onChange={(e) => setEditValue(e.target.value)}
-                        onBlur={() => handleEditConfirm(item.id)}
-                        onKeyDown={(e) => handleEditKeyDown(e, item.id)}
-                        className="w-20 px-2 py-1 border border-primary rounded text-right font-body text-body bg-surface focus:outline-none focus:ring-2 focus:ring-primary/20"
-                        autoFocus
-                        aria-label={`Edit quantity for ${item.itemName}`}
-                      />
-                    ) : (
-                      <button
-                        onClick={() => handleEditStart(item)}
-                        className="hover:bg-surface-container-high px-2 py-1 rounded transition-colors cursor-pointer"
-                        title="Click to edit quantity"
-                        aria-label={`Edit quantity for ${item.itemName}, current value ${item.quantity}`}
-                      >
-                        {item.quantity}
-                      </button>
-                    )}
+                    {item.quantity}
                   </td>
                   <td className="px-6 py-4 font-body text-body text-right text-on-surface-variant">
                     {item.minimumThreshold}
@@ -267,6 +357,17 @@ const Inventory: React.FC = () => {
                       </span>
                     )}
                   </td>
+                  <td className="px-6 py-4 text-right">
+                    <button
+                      type="button"
+                      onClick={() => setEditingItem(item)}
+                      data-testid={`inventory-edit-button-${item.id}`}
+                      className="px-3 py-1.5 text-sm bg-primary/10 text-primary rounded-lg hover:bg-primary/20 active:scale-[0.98] transition-all inline-flex items-center gap-1"
+                    >
+                      <span className="material-symbols-outlined text-base">edit</span>
+                      Edit
+                    </button>
+                  </td>
                 </tr>
               );
             })}
@@ -280,6 +381,14 @@ const Inventory: React.FC = () => {
           </div>
         )}
       </div>
+
+      {editingItem && (
+        <EditModal
+          item={editingItem}
+          onClose={() => setEditingItem(null)}
+          onSave={handleSave}
+        />
+      )}
     </div>
   );
 };

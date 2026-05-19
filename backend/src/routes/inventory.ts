@@ -43,7 +43,8 @@ export function createInventoryRouter(prisma: PrismaClient): Router {
     }
   });
 
-  // PATCH /api/inventory/:id — update inventory item quantity
+  // PATCH /api/inventory/:id — update inventory quantity and/or
+  // minimumThreshold. At least one of the two fields must be present.
   router.patch('/:id', async (req, res) => {
     try {
       const id = parseInt(req.params.id, 10);
@@ -53,17 +54,43 @@ export function createInventoryRouter(prisma: PrismaClient): Router {
         return;
       }
 
-      const { quantity } = req.body;
+      const { quantity, minimumThreshold } = req.body as {
+        quantity?: unknown;
+        minimumThreshold?: unknown;
+      };
 
-      // Validate quantity is a non-negative integer
-      if (quantity === undefined || quantity === null) {
-        res.status(400).json({ error: 'quantity is required' });
+      // Reject empty body (neither field provided).
+      if (quantity === undefined && minimumThreshold === undefined) {
+        res
+          .status(400)
+          .json({ error: 'quantity or minimumThreshold is required' });
         return;
       }
 
-      if (typeof quantity !== 'number' || !Number.isInteger(quantity) || quantity < 0) {
-        res.status(400).json({ error: 'quantity must be a non-negative integer' });
-        return;
+      // Validate quantity is a non-negative integer when provided.
+      if (quantity !== undefined) {
+        if (
+          typeof quantity !== 'number' ||
+          !Number.isInteger(quantity) ||
+          quantity < 0
+        ) {
+          res.status(400).json({ error: 'quantity must be a non-negative integer' });
+          return;
+        }
+      }
+
+      // Validate minimumThreshold is a non-negative integer when provided.
+      if (minimumThreshold !== undefined) {
+        if (
+          typeof minimumThreshold !== 'number' ||
+          !Number.isInteger(minimumThreshold) ||
+          minimumThreshold < 0
+        ) {
+          res
+            .status(400)
+            .json({ error: 'minimumThreshold must be a non-negative integer' });
+          return;
+        }
       }
 
       // Check if item exists
@@ -74,9 +101,15 @@ export function createInventoryRouter(prisma: PrismaClient): Router {
         return;
       }
 
+      const data: { quantity?: number; minimumThreshold?: number } = {};
+      if (quantity !== undefined) data.quantity = quantity as number;
+      if (minimumThreshold !== undefined) {
+        data.minimumThreshold = minimumThreshold as number;
+      }
+
       const updated = await prisma.inventory.update({
         where: { id },
-        data: { quantity },
+        data,
         select: {
           id: true,
           itemName: true,

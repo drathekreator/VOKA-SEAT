@@ -163,7 +163,7 @@ describe('Inventory Route - PATCH /api/inventory/:id', () => {
     expect(prisma.inventory.update).not.toHaveBeenCalled();
   });
 
-  it('should return 400 when quantity is missing', async () => {
+  it('should return 400 when quantity AND minimumThreshold are both missing', async () => {
     const prisma = createMockPrisma([]);
     const handler = getRouteHandler(prisma, 'patch', '/:id');
     const req = mockReq({ params: { id: '1' }, body: {} });
@@ -172,7 +172,9 @@ describe('Inventory Route - PATCH /api/inventory/:id', () => {
     await handler(req, res);
 
     expect(res.status).toHaveBeenCalledWith(400);
-    expect(res.json).toHaveBeenCalledWith({ error: 'quantity is required' });
+    expect(res.json).toHaveBeenCalledWith({
+      error: 'quantity or minimumThreshold is required',
+    });
   });
 
   it('should return 400 when quantity is negative', async () => {

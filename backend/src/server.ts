@@ -63,7 +63,9 @@ app.use('/api/menu', createMenuRouter(prisma));
 // --- Mixed-auth APIs ------------------------------------------------
 // Orders: POST is optional-auth (Property 20). Other routes inside
 // `createOrdersRouter` apply customer or admin middleware per-route.
-app.use('/api/orders', createOrdersRouter(prisma));
+// The Socket.IO server is wired through so PATCH /:id/status can
+// broadcast `order_status_update` to all connected clients.
+app.use('/api/orders', createOrdersRouter(prisma, io));
 
 // --- Admin-only APIs (role=admin guard inside each router) ----------
 app.use('/api/inventory', createInventoryRouter(prisma));
