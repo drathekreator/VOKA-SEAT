@@ -91,3 +91,39 @@ export function broadcastSeatUpdate(io: Server, seat: { id: number; status: numb
 
   io.emit('seat_update', payload);
 }
+
+/**
+ * Order status update payload. The `userEmail` is included (and may be
+ * null for guest orders) so the Customer App can decide whether to
+ * surface a browser notification — only when the email matches the
+ * authenticated user's email.
+ */
+export interface OrderStatusUpdate {
+  orderId: number;
+  status: string;
+  userEmail: string | null;
+  seatId: number | null;
+  updatedAt: string;
+}
+
+/**
+ * Broadcasts an order status change to all connected clients. Customer
+ * App uses this to live-update OrderHistoryView / OrderDetailView and
+ * to fire browser notifications when their own order is ready. Admin
+ * OrderQueue uses this to refresh the queue when another admin tab
+ * advances an order's status.
+ */
+export function broadcastOrderStatusUpdate(
+  io: Server,
+  order: { id: number; status: string; userEmail: string | null; seatId: number | null; updatedAt: Date | string },
+): void {
+  const payload: OrderStatusUpdate = {
+    orderId: order.id,
+    status: order.status,
+    userEmail: order.userEmail,
+    seatId: order.seatId,
+    updatedAt: typeof order.updatedAt === 'string' ? order.updatedAt : order.updatedAt.toISOString(),
+  };
+
+  io.emit('order_status_update', payload);
+}

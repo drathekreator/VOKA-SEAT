@@ -1,5 +1,6 @@
 import { Router, Response } from 'express';
 import { PrismaClient } from '@prisma/client';
+import type { Server as SocketIOServer } from 'socket.io';
 import { sanitizerMiddleware } from '../middleware/sanitizer';
 import {
   authMiddleware,
@@ -8,8 +9,10 @@ import {
   AuthenticatedRequest,
 } from '../middleware/auth';
 import { recordOrderStatusChange } from '../services/orderService';
+import { broadcastOrderStatusUpdate } from '../websocket/broadcaster';
 
-const VALID_STATUSES = ['pending', 'preparing', 'ready', 'completed', 'cancelled'];
+const VALID_STATUSES = ['pending', 'preparing', 'ready', 'completed', 'cancelled'] as const;
+const ACTIVE_STATUSES = ['pending', 'preparing', 'ready'] as const;
 const PAGE_SIZE = 20;
 
 /**
@@ -31,16 +34,27 @@ const PAGE_SIZE = 20;
  *                             order must belong to the authenticated
  *                             customer or the request is rejected.
  *   GET   /pending            Admin JWT required — pending orders queue.
+ *   GET   /active             Admin JWT required — pending + preparing +
+ *                             ready (everything that hasn't reached a
+ *                             terminal state). Used by the redesigned
+ *                             Order Queue with status-transition buttons.
  *   PATCH /:id/assign-seat    Admin JWT required.
- *   PATCH /:id/status         Admin JWT required.
+ *   PATCH /:id/status         Admin JWT required. On success, broadcasts
+ *                             `order_status_update` to all connected
+ *                             WebSocket clients.
  *
  * Route registration order matters: Express matches in declaration
  * order, so we register all literal-path routes (e.g. `/history`,
- * `/pending`) BEFORE any `/:id`-style parametric routes — otherwise
- * `/pending` would be swallowed by `/:id` and rejected with 401 before
- * the admin auth check runs.
+ * `/pending`, `/active`) BEFORE any `/:id`-style parametric routes —
+ * otherwise `/active` would be swallowed by `/:id` and rejected with
+ * 401 before the admin auth check runs.
+ *
+ * @param prisma  Shared Prisma client.
+ * @param io      Socket.IO server. Optional so existing unit tests that
+ *                construct the router without IO context still work — in
+ *                that case status updates simply skip the broadcast.
  */
-export function createOrdersRouter(prisma: PrismaClient): Router {
+export function createOrdersRouter(prisma: PrismaClient, io?: SocketIOServer): Router {
   const router = Router();
   router.use(sanitizerMiddleware);
 
@@ -112,6 +126,19 @@ export function createOrdersRouter(prisma: PrismaClient): Router {
       });
 
       res.status(201).json(order);
+
+      // After persisting, notify connected admin tabs that a new pending
+      // order has appeared so the queue refreshes without a manual reload.
+      // Customer-side ignores `pending` notifications (only `ready`/etc).
+      if (io) {
+        broadcastOrderStatusUpdate(io, {
+          id: order.id,
+          status: order.status,
+          userEmail: order.userEmail ?? null,
+          seatId: order.seatId ?? null,
+          updatedAt: order.updatedAt,
+        });
+      }
     } catch (error) {
       console.error('❌ Error creating order:', error);
       res.status(500).json({ error: 'Failed to create order' });
@@ -148,7 +175,8 @@ export function createOrdersRouter(prisma: PrismaClient): Router {
     }
   });
 
-  // GET /pending (admin JWT)
+  // GET /pending (admin JWT) — kept for backwards compatibility with
+  // existing tests / older admin UIs that only look at NEW orders.
   router.get('/pending', adminAuthMiddleware, async (_req: AuthenticatedRequest, res: Response) => {
     try {
       const orders = await prisma.order.findMany({
@@ -163,6 +191,28 @@ export function createOrdersRouter(prisma: PrismaClient): Router {
     } catch (error) {
       console.error('❌ Error fetching pending orders:', error);
       res.status(500).json({ error: 'Failed to fetch pending orders' });
+    }
+  });
+
+  // GET /active (admin JWT) — pending + preparing + ready. The new
+  // Order Queue UI uses this so the queue stays populated until the
+  // order is completed or cancelled, allowing status-transition
+  // buttons to advance each order through its lifecycle.
+  router.get('/active', adminAuthMiddleware, async (_req: AuthenticatedRequest, res: Response) => {
+    try {
+      const orders = await prisma.order.findMany({
+        where: { status: { in: [...ACTIVE_STATUSES] } },
+        orderBy: { createdAt: 'asc' },
+        include: {
+          user: { select: { name: true, email: true } },
+          seat: { select: { id: true, zone: true } },
+          items: { include: { menuItem: { select: { name: true } } } },
+        },
+      });
+      res.json(orders);
+    } catch (error) {
+      console.error('❌ Error fetching active orders:', error);
+      res.status(500).json({ error: 'Failed to fetch active orders' });
     }
   });
 
@@ -278,6 +328,19 @@ export function createOrdersRouter(prisma: PrismaClient): Router {
       });
 
       res.json(updatedOrder);
+
+      // Broadcast to all connected clients (admin tabs + customer
+      // browsers). Customer App listens for this event and surfaces a
+      // browser notification when their own order reaches `ready`.
+      if (io && updatedOrder) {
+        broadcastOrderStatusUpdate(io, {
+          id: updatedOrder.id,
+          status: updatedOrder.status,
+          userEmail: (updatedOrder as { userEmail?: string | null }).userEmail ?? null,
+          seatId: (updatedOrder as { seatId?: number | null }).seatId ?? null,
+          updatedAt: (updatedOrder as { updatedAt?: Date | string }).updatedAt ?? new Date(),
+        });
+      }
     } catch (error) {
       console.error('❌ Error updating order status:', error);
       res.status(500).json({ error: 'Failed to update order status' });
@@ -285,7 +348,8 @@ export function createOrdersRouter(prisma: PrismaClient): Router {
   });
 
   // GET /:id (customer JWT, ownership-checked) — declared LAST so the
-  // literal routes above (e.g. /pending, /history) are matched first.
+  // literal routes above (e.g. /pending, /history, /active) are matched
+  // first.
   router.get('/:id', authMiddleware, async (req: AuthenticatedRequest, res: Response) => {
     try {
       const orderId = parseInt(req.params.id as string);

@@ -3,52 +3,117 @@ import Sidebar from './components/Sidebar'
 import Tablespace from './components/Tablespace'
 import type { TablespaceSeat } from './components/Tablespace'
 import OrderQueue from './components/OrderQueue'
-import type { Order } from './components/OrderQueue'
+import type { Order, OrderStatus } from './components/OrderQueue'
 import Inventory from './components/Inventory'
 import Analytics from './components/Analytics'
 import AssignTableDialog from './components/AssignTableDialog'
 import type { AssignTableSeat } from './components/AssignTableDialog'
 import { useSeats } from './hooks/useSeats'
+import { useOrderUpdates } from './hooks/useOrderUpdates'
 import { adminFetch } from './admin/adminFetch'
+
+/**
+ * Shape of an order returned by GET /api/orders/active. The shape is a
+ * superset of the Order interface that OrderQueue consumes — we adapt
+ * it inline.
+ */
+interface ApiOrder {
+  id: number;
+  userEmail: string | null;
+  seatId: number | null;
+  status: OrderStatus;
+  createdAt: string;
+  user?: { name: string; email: string } | null;
+  seat?: { id: number; zone: string } | null;
+  items: Array<{
+    id: number;
+    quantity: number;
+    menuItem: { name: string };
+  }>;
+}
+
+function adaptOrder(api: ApiOrder): Order {
+  return {
+    id: api.id,
+    customerName: api.user?.name ?? 'Guest',
+    items: api.items.map((it) => ({
+      id: it.id,
+      name: it.menuItem.name,
+      quantity: it.quantity,
+    })),
+    createdAt: api.createdAt,
+    status: api.status,
+    seatId: api.seatId,
+  };
+}
 
 function App() {
   const [activeTab, setActiveTab] = useState('dashboard');
-  const [pendingOrders, setPendingOrders] = useState<Order[]>([]);
+  const [activeOrders, setActiveOrders] = useState<Order[]>([]);
   const [assignDialogOpen, setAssignDialogOpen] = useState(false);
   const [assignOrderId, setAssignOrderId] = useState<number | null>(null);
 
-  // Use the shared useSeats hook for real-time seat data across all views
   const { seats, isConnected } = useSeats();
 
-  // Map seats to the format expected by Tablespace component
   const tablespaceSeats: TablespaceSeat[] = seats.map((s) => ({
     id: s.id,
     status: s.status,
     zone: s.zone,
   }));
 
-  // Map seats to the format expected by AssignTableDialog
   const assignTableSeats: AssignTableSeat[] = seats.map((s) => ({
     id: s.id,
     status: s.status,
     zone: s.zone,
   }));
 
-  // Fetch pending orders from backend (uses admin JWT via adminFetch)
-  useEffect(() => {
-    const fetchPendingOrders = async () => {
-      try {
-        const response = await adminFetch('/api/orders/pending');
-        if (response.ok) {
-          const data = await response.json();
-          setPendingOrders(data);
-        }
-      } catch {
-        // Orders will remain empty until backend is available
+  // Initial fetch + manual refresh helper.
+  const fetchActiveOrders = useCallback(async () => {
+    try {
+      const response = await adminFetch('/api/orders/active');
+      if (response.ok) {
+        const data: ApiOrder[] = await response.json();
+        setActiveOrders(data.map(adaptOrder));
       }
-    };
-    fetchPendingOrders();
+    } catch {
+      // Orders will remain empty until backend is available
+    }
   }, []);
+
+  useEffect(() => {
+    fetchActiveOrders();
+  }, [fetchActiveOrders]);
+
+  // Live updates: when any order status changes (including new pending
+  // orders coming in from POST /api/orders), reconcile the queue.
+  // Terminal transitions (`completed` / `cancelled`) drop the order
+  // from the active queue. Everything else updates in-place — and if
+  // we don't have the order yet (race condition: status update arrived
+  // before the initial fetch returned), we re-fetch the full list.
+  useOrderUpdates((update) => {
+    setActiveOrders((prev) => {
+      const idx = prev.findIndex((o) => o.id === update.orderId);
+      if (idx === -1) {
+        // We don't have this order yet — kick off a refetch out-of-band.
+        // Returning prev keeps state intact while the fetch runs.
+        if (update.status === 'pending' || update.status === 'preparing' || update.status === 'ready') {
+          fetchActiveOrders();
+        }
+        return prev;
+      }
+      const next = [...prev];
+      if (update.status === 'completed' || update.status === 'cancelled') {
+        next.splice(idx, 1);
+      } else {
+        next[idx] = {
+          ...next[idx],
+          status: update.status,
+          seatId: update.seatId,
+        };
+      }
+      return next;
+    });
+  });
 
   const handleAssignTable = useCallback((orderId: number) => {
     setAssignOrderId(orderId);
@@ -63,11 +128,14 @@ function App() {
       });
 
       if (response.ok) {
-        // Remove the order from the pending queue
-        setPendingOrders((prev) => prev.filter((o) => o.id !== orderId));
+        // Optimistic update — backend doesn't broadcast for assign-seat
+        // alone (only for status changes), so reflect it locally.
+        setActiveOrders((prev) =>
+          prev.map((o) => (o.id === orderId ? { ...o, seatId } : o)),
+        );
       }
     } catch {
-      // Handle error silently; order remains in queue
+      // silent — order remains in queue
     } finally {
       setAssignDialogOpen(false);
       setAssignOrderId(null);
@@ -77,6 +145,23 @@ function App() {
   const handleAssignClose = useCallback(() => {
     setAssignDialogOpen(false);
     setAssignOrderId(null);
+  }, []);
+
+  /**
+   * Advance an order to a new status via PATCH /api/orders/:id/status.
+   * The backend broadcasts `order_status_update`, so the local queue
+   * reconciles automatically via useOrderUpdates above. We don't need
+   * an optimistic update here.
+   */
+  const handleUpdateStatus = useCallback(async (orderId: number, status: OrderStatus) => {
+    try {
+      await adminFetch(`/api/orders/${orderId}/status`, {
+        method: 'PATCH',
+        body: JSON.stringify({ status }),
+      });
+    } catch {
+      // Best-effort — if the request fails, the queue stays as-is.
+    }
   }, []);
 
   const renderActiveView = () => {
@@ -121,15 +206,15 @@ function App() {
                 </p>
               </div>
 
-              {/* Pending Orders */}
+              {/* Active Orders */}
               <div className="bg-surface rounded-lg border border-border-soft shadow-sm p-5">
                 <div className="flex items-center gap-3 mb-3">
                   <div className="w-10 h-10 rounded-full bg-amber-100 flex items-center justify-center">
                     <span className="material-symbols-outlined text-amber-600">pending_actions</span>
                   </div>
-                  <span className="font-body text-body text-on-surface-variant">Pending Orders</span>
+                  <span className="font-body text-body text-on-surface-variant">Active Orders</span>
                 </div>
-                <p className="text-2xl font-bold text-on-background">{pendingOrders.length}</p>
+                <p className="text-2xl font-bold text-on-background">{activeOrders.length}</p>
               </div>
 
               {/* Connection Status */}
@@ -151,7 +236,13 @@ function App() {
         );
 
       case 'orders':
-        return <OrderQueue orders={pendingOrders} onAssignTable={handleAssignTable} />;
+        return (
+          <OrderQueue
+            orders={activeOrders}
+            onAssignTable={handleAssignTable}
+            onUpdateStatus={handleUpdateStatus}
+          />
+        );
 
       case 'tablespace':
         return <Tablespace seats={tablespaceSeats} />;
