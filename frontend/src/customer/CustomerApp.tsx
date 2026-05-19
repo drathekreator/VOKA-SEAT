@@ -15,7 +15,14 @@ import PaymentSuccessView, {
 } from './views/PaymentSuccessView';
 import OrderHistoryView from './views/OrderHistoryView';
 import OrderDetailView from './views/OrderDetailView';
+import ToastNotice from './components/ToastNotice';
 import type { CartItem } from '../utils/cartCalculator';
+import { useOrderUpdates } from '../hooks/useOrderUpdates';
+import {
+  loadPersistedCart,
+  savePersistedCart,
+  clearPersistedCart,
+} from './utils/persistedCart';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000';
 
@@ -78,14 +85,30 @@ export default function CustomerApp() {
 }
 
 function CustomerAppContent() {
-  const { isAuthenticated, isLoading, token } = useAuth();
+  const { isAuthenticated, isLoading, token, user } = useAuth();
 
   // ---- Auth overlay ('none' until the customer asks to sign in) ----
   const [authScreen, setAuthScreen] = useState<AuthScreen>('none');
 
   // ---- Customer app state ----
   const [activeTab, setActiveTab] = useState<CustomerTabId>('menu');
-  const [cartItems, setCartItems] = useState<CartItem[]>([]);
+  // Lazy initial state — read persisted cart from localStorage so the
+  // customer doesn't lose their selections on reload or accidental
+  // back-swipe. The next id is bumped to avoid collisions with cached
+  // ids on the next add.
+  const [cartItems, setCartItems] = useState<CartItem[]>(() => {
+    const persisted = loadPersistedCart();
+    if (persisted.length > 0) {
+      const maxId = Math.max(...persisted.map((it) => it.id));
+      if (maxId >= nextCartItemId) nextCartItemId = maxId + 1;
+    }
+    return persisted;
+  });
+
+  // Persist cart on every change. Empty cart clears the storage key.
+  useEffect(() => {
+    savePersistedCart(cartItems);
+  }, [cartItems]);
   const [overlayScreen, setOverlayScreen] = useState<OverlayScreen>(NO_OVERLAY);
   const [paymentSnapshot, setPaymentSnapshot] = useState<PaymentSuccessSnapshot | null>(null);
   /**
@@ -99,6 +122,19 @@ function CustomerAppContent() {
   // ---- Search state (Menu tab only) --------------------------------
   const [searchMode, setSearchMode] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+
+  // Number of orders the current customer has in `pending`/`preparing`/`ready`.
+  // Drives the badge on the Profile tab so customers always know there's
+  // something happening for them to look at in Order History.
+  const [activeOrderCount, setActiveOrderCount] = useState(0);
+
+  // Single-slot toast for ephemeral user feedback (claim success,
+  // network failure, etc). The render branch reads from this state at
+  // the bottom of the shell so toasts persist across overlay screens.
+  const [toast, setToast] = useState<{
+    message: string;
+    variant: 'success' | 'error' | 'info';
+  } | null>(null);
 
   const cartCount = cartItems.reduce((sum, item) => sum + item.quantity, 0);
   const cartTotalIdr = cartItems.reduce(
@@ -221,6 +257,7 @@ function CustomerAppContent() {
 
   const handleBackToMenuFromSuccess = useCallback(() => {
     setCartItems([]);
+    clearPersistedCart();
     setPaymentSnapshot(null);
     setPendingClaimOrderId(null);
     setActiveTab('menu');
@@ -261,6 +298,52 @@ function CustomerAppContent() {
     setOverlayScreen({ type: 'order-history' });
   }, []);
 
+  // ---- Active order count for Profile badge ------------------------
+  // When authenticated, fetch the most recent order page once and count
+  // entries whose status is in {pending, preparing, ready}. The count
+  // is then maintained live by the order-status-update effect below.
+  useEffect(() => {
+    if (!token || !user) {
+      setActiveOrderCount(0);
+      return;
+    }
+    let cancelled = false;
+    void (async () => {
+      try {
+        const res = await fetch(`${API_URL}/api/orders/history?page=1`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (!res.ok) return;
+        const body = (await res.json()) as { orders?: Array<{ status: string }> };
+        if (cancelled) return;
+        const live = (body.orders ?? []).filter((o) =>
+          ['pending', 'preparing', 'ready'].includes(o.status),
+        ).length;
+        setActiveOrderCount(live);
+      } catch {
+        /* network errors → leave the badge stale */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [token, user]);
+
+  // Live decrement of the Profile badge: when an order owned by the
+  // signed-in customer reaches a terminal status (`completed` or
+  // `cancelled`), drop the count by one (clamped at 0). When a new
+  // order is placed (`pending`) for the same customer, increment.
+  // Promotion to `preparing` / `ready` doesn't change the badge — the
+  // order is still in progress.
+  useOrderUpdates((update) => {
+    if (!user || update.userEmail !== user.email) return;
+    if (update.status === 'pending') {
+      setActiveOrderCount((prev) => prev + 1);
+    } else if (update.status === 'completed' || update.status === 'cancelled') {
+      setActiveOrderCount((prev) => Math.max(0, prev - 1));
+    }
+  });
+
   // ---- Retroactive guest-order claim --------------------------------
   // Watches for the case where the customer signed in/registered after
   // tapping "Save Order to Account" on Payment Success. When `token`
@@ -270,23 +353,33 @@ function CustomerAppContent() {
     if (!pendingClaimOrderId || !token) return;
     let cancelled = false;
     void (async () => {
+      let succeeded = false;
       try {
-        await fetch(`${API_URL}/api/orders/${pendingClaimOrderId}/claim`, {
+        const res = await fetch(`${API_URL}/api/orders/${pendingClaimOrderId}/claim`, {
           method: 'PATCH',
           headers: {
             Authorization: `Bearer ${token}`,
           },
         });
+        succeeded = res.ok;
       } catch {
-        // Network/claim failure is non-fatal — the order is still on
-        // the backend with userEmail = NULL; the customer just can't
-        // see it in their history. We swallow silently for MVP.
+        // Network failure → toast + leave the snapshot as guest so the
+        // CTA stays visible for retry.
+        succeeded = false;
       } finally {
         if (cancelled) return;
         setPendingClaimOrderId(null);
-        setPaymentSnapshot((prev) =>
-          prev ? { ...prev, wasGuestCheckout: false } : prev,
-        );
+        if (succeeded) {
+          setPaymentSnapshot((prev) =>
+            prev ? { ...prev, wasGuestCheckout: false } : prev,
+          );
+          setToast({ message: 'Order saved to your account.', variant: 'success' });
+        } else {
+          setToast({
+            message: "Couldn't save the order. You can still see it from this device.",
+            variant: 'error',
+          });
+        }
       }
     })();
     return () => {
@@ -538,6 +631,16 @@ function CustomerAppContent() {
         activeTab={activeTab}
         onTabChange={handleTabChange}
         cartCount={cartCount}
+        activeOrderCount={activeOrderCount}
+      />
+
+      {/* Single global toast slot — overlays both the tabbed shell and
+          full-screen overlays so feedback never gets hidden behind a
+          higher-stack screen. */}
+      <ToastNotice
+        message={toast?.message ?? null}
+        variant={toast?.variant ?? 'info'}
+        onDismiss={() => setToast(null)}
       />
     </div>
   );

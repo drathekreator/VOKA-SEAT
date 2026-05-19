@@ -337,6 +337,32 @@ vi.mock('../../src/customer/auth/RegisterScreen', () => ({
 // ---------------------------------------------------------------------------
 import CustomerApp from '../../src/customer/CustomerApp';
 
+/**
+ * URL-aware fetch stub. The customer shell now also fetches
+ * `/api/orders/history` to populate the Profile-tab badge — those
+ * requests need to return an empty `{ orders: [] }` shape so they
+ * don't break the menu-fetch flow that `mock-add-to-cart` relies on.
+ */
+function stubFetchWithMenu(menuItems: Array<{ id: number; name: string; price: number }>) {
+  return vi.spyOn(globalThis, 'fetch').mockImplementation((input: RequestInfo | URL) => {
+    const url = typeof input === 'string' ? input : input.toString();
+    if (url.includes('/api/orders/history')) {
+      return Promise.resolve(
+        new Response(JSON.stringify({ orders: [] }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        }),
+      );
+    }
+    return Promise.resolve(
+      new Response(JSON.stringify(menuItems), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      }),
+    );
+  });
+}
+
 beforeEach(() => {
   resetMockAuthState();
   localStorage.clear();
@@ -506,14 +532,7 @@ describe('CustomerApp — CartSummaryBar visibility (Requirements 17.8–17.11)'
   });
 
   it('appears on the Menu tab once the cart has at least one item', async () => {
-    const fetchSpy = vi
-      .spyOn(globalThis, 'fetch')
-      .mockResolvedValue(
-        new Response(
-          JSON.stringify([{ id: 1, name: 'Iced Latte', price: 25000 }]),
-          { status: 200, headers: { 'Content-Type': 'application/json' } },
-        ),
-      );
+    const fetchSpy = stubFetchWithMenu([{ id: 1, name: 'Iced Latte', price: 25000 }]);
 
     render(<CustomerApp />);
 
@@ -528,12 +547,7 @@ describe('CustomerApp — CartSummaryBar visibility (Requirements 17.8–17.11)'
   });
 
   it('is hidden on non-Menu tabs even when the cart has items', async () => {
-    vi.spyOn(globalThis, 'fetch').mockResolvedValue(
-      new Response(
-        JSON.stringify([{ id: 1, name: 'Iced Latte', price: 25000 }]),
-        { status: 200, headers: { 'Content-Type': 'application/json' } },
-      ),
-    );
+    stubFetchWithMenu([{ id: 1, name: 'Iced Latte', price: 25000 }]);
 
     render(<CustomerApp />);
 
@@ -550,12 +564,7 @@ describe('CustomerApp — CartSummaryBar visibility (Requirements 17.8–17.11)'
   });
 
   it('"View Cart" tap switches to the Cart tab', async () => {
-    vi.spyOn(globalThis, 'fetch').mockResolvedValue(
-      new Response(
-        JSON.stringify([{ id: 1, name: 'Iced Latte', price: 25000 }]),
-        { status: 200, headers: { 'Content-Type': 'application/json' } },
-      ),
-    );
+    stubFetchWithMenu([{ id: 1, name: 'Iced Latte', price: 25000 }]);
 
     render(<CustomerApp />);
 
@@ -611,12 +620,7 @@ describe('CustomerApp — overlay routing', () => {
   });
 
   it('Cart → Checkout overlay hides TopAppBar and BottomNav', async () => {
-    vi.spyOn(globalThis, 'fetch').mockResolvedValue(
-      new Response(
-        JSON.stringify([{ id: 1, name: 'Iced Latte', price: 25000 }]),
-        { status: 200, headers: { 'Content-Type': 'application/json' } },
-      ),
-    );
+    stubFetchWithMenu([{ id: 1, name: 'Iced Latte', price: 25000 }]);
 
     render(<CustomerApp />);
 
@@ -635,12 +639,7 @@ describe('CustomerApp — overlay routing', () => {
   });
 
   it('Checkout onPaymentConfirmed opens PaymentSuccess with the order number', async () => {
-    vi.spyOn(globalThis, 'fetch').mockResolvedValue(
-      new Response(
-        JSON.stringify([{ id: 1, name: 'Iced Latte', price: 25000 }]),
-        { status: 200, headers: { 'Content-Type': 'application/json' } },
-      ),
-    );
+    stubFetchWithMenu([{ id: 1, name: 'Iced Latte', price: 25000 }]);
 
     render(<CustomerApp />);
 
@@ -659,12 +658,7 @@ describe('CustomerApp — overlay routing', () => {
   });
 
   it('PaymentSuccess "Back to Menu" returns to Menu and clears the cart (Requirement 12.10)', async () => {
-    vi.spyOn(globalThis, 'fetch').mockResolvedValue(
-      new Response(
-        JSON.stringify([{ id: 1, name: 'Iced Latte', price: 25000 }]),
-        { status: 200, headers: { 'Content-Type': 'application/json' } },
-      ),
-    );
+    stubFetchWithMenu([{ id: 1, name: 'Iced Latte', price: 25000 }]);
 
     render(<CustomerApp />);
 
@@ -686,12 +680,7 @@ describe('CustomerApp — overlay routing', () => {
   });
 
   it('PaymentSuccess "View Order Status" opens the Order Detail view', async () => {
-    vi.spyOn(globalThis, 'fetch').mockResolvedValue(
-      new Response(
-        JSON.stringify([{ id: 1, name: 'Iced Latte', price: 25000 }]),
-        { status: 200, headers: { 'Content-Type': 'application/json' } },
-      ),
-    );
+    stubFetchWithMenu([{ id: 1, name: 'Iced Latte', price: 25000 }]);
 
     render(<CustomerApp />);
 
@@ -719,12 +708,7 @@ describe('CustomerApp — overlay routing', () => {
       token: null,
     });
 
-    vi.spyOn(globalThis, 'fetch').mockResolvedValue(
-      new Response(
-        JSON.stringify([{ id: 1, name: 'Iced Latte', price: 25000 }]),
-        { status: 200, headers: { 'Content-Type': 'application/json' } },
-      ),
-    );
+    stubFetchWithMenu([{ id: 1, name: 'Iced Latte', price: 25000 }]);
 
     render(<CustomerApp />);
 

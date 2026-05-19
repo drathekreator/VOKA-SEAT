@@ -142,6 +142,43 @@ export default function OrderDetailView({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [notFound, setNotFound] = useState(false);
+  const [cancelling, setCancelling] = useState(false);
+  const [cancelError, setCancelError] = useState<string | null>(null);
+
+  // 5-minute customer cancel window — must match the backend constant
+  // CUSTOMER_CANCEL_WINDOW_MS in routes/orders.ts. We re-evaluate on
+  // every render so the button hides automatically once the window
+  // expires while the user is still on the page.
+  const CANCEL_WINDOW_MS = 5 * 60 * 1000;
+  const cancellable =
+    order?.status === 'pending' &&
+    Date.now() - new Date(order.createdAt).getTime() < CANCEL_WINDOW_MS;
+
+  const handleCancel = async () => {
+    if (!token || !order || cancelling) return;
+    if (!cancellable) return;
+    if (!window.confirm('Cancel this order? This cannot be undone.')) return;
+
+    setCancelling(true);
+    setCancelError(null);
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/orders/${order.id}/cancel`, {
+        method: 'PATCH',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) {
+        const body = (await res.json().catch(() => null)) as { error?: string } | null;
+        setCancelError(body?.error ?? 'Failed to cancel order');
+        return;
+      }
+      const updated = (await res.json()) as OrderDetail;
+      setOrder((prev) => (prev ? { ...prev, ...updated, status: updated.status } : prev));
+    } catch {
+      setCancelError('Network error — please try again');
+    } finally {
+      setCancelling(false);
+    }
+  };
 
   // One-shot permission prompt the first time this view mounts.
   useEffect(() => {
@@ -540,6 +577,84 @@ export default function OrderDetailView({
                   );
                 })}
               </ol>
+            )}
+          </section>
+
+          {/* ---------------- Actions: Receipt + Cancel ---------------- */}
+          <section
+            className="flex flex-col gap-2"
+            data-testid="order-detail-actions"
+          >
+            {/* Receipt PDF — always available for the order owner. We open
+                the URL in a new tab so the browser's PDF viewer / Save As
+                dialog handles it natively, sidestepping the friction of
+                blob downloads on mobile Safari. */}
+            <a
+              href={`${API_BASE_URL}/api/orders/${order.id}/receipt.pdf`}
+              target="_blank"
+              rel="noopener noreferrer"
+              data-testid="order-detail-download-receipt"
+              className="w-full inline-flex items-center justify-center gap-2 bg-surface-container-lowest text-on-surface border border-outline-variant rounded-xl h-12 font-label-md text-label-md active:scale-95 transition-transform"
+              onClick={(e) => {
+                // The link uses Authorization: Bearer auth via Express — but
+                // <a target="_blank"> can't carry custom headers, so we
+                // intercept and use a programmatic fetch + blob URL.
+                e.preventDefault();
+                if (!token) return;
+                void (async () => {
+                  try {
+                    const res = await fetch(
+                      `${API_BASE_URL}/api/orders/${order.id}/receipt.pdf`,
+                      { headers: { Authorization: `Bearer ${token}` } },
+                    );
+                    if (!res.ok) return;
+                    const blob = await res.blob();
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `vokafe-receipt-${order.id}.pdf`;
+                    document.body.appendChild(a);
+                    a.click();
+                    a.remove();
+                    URL.revokeObjectURL(url);
+                  } catch {
+                    /* silent — user can retry */
+                  }
+                })();
+              }}
+            >
+              <span className="material-symbols-outlined text-base" aria-hidden="true">
+                receipt_long
+              </span>
+              Download Receipt (PDF)
+            </a>
+
+            {/* Customer cancel button — only visible while still in the
+                5-minute window AND status === 'pending'. Beyond that
+                the bartender has picked it up; only an admin can cancel. */}
+            {cancellable && (
+              <button
+                type="button"
+                onClick={handleCancel}
+                disabled={cancelling}
+                data-testid="order-detail-cancel"
+                className="w-full inline-flex items-center justify-center gap-2 bg-white text-rose-600 border border-rose-200 rounded-xl h-12 font-label-md text-label-md active:scale-95 transition-transform disabled:opacity-60 disabled:cursor-not-allowed"
+              >
+                <span className="material-symbols-outlined text-base" aria-hidden="true">
+                  cancel
+                </span>
+                {cancelling ? 'Cancelling…' : 'Cancel Order'}
+              </button>
+            )}
+
+            {cancelError && (
+              <p
+                role="alert"
+                data-testid="order-detail-cancel-error"
+                className="text-sm text-rose-600 text-center mt-1"
+              >
+                {cancelError}
+              </p>
             )}
           </section>
         </div>

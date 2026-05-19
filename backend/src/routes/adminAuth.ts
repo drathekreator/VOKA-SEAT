@@ -17,6 +17,7 @@ import { Router } from 'express';
 import bcrypt from 'bcrypt';
 import type { PrismaClient } from '@prisma/client';
 import { sanitizerMiddleware } from '../middleware/sanitizer';
+import { rateLimit } from '../middleware/rateLimit';
 import { signAdminToken } from '../middleware/auth';
 
 let prisma: PrismaClient;
@@ -24,10 +25,21 @@ export function setAdminAuthPrisma(client: PrismaClient): void {
   prisma = client;
 }
 
+/**
+ * Tight rate limit (5 attempts/minute/IP) to slow down brute force
+ * attacks against the lone admin account. Legitimate operators rarely
+ * hit this; attackers spamming credentials get bounced quickly.
+ */
+const adminLoginLimiter = rateLimit({
+  windowMs: 60_000,
+  max: 5,
+  message: 'Too many login attempts. Please try again in a minute.',
+});
+
 const router = Router();
 router.use(sanitizerMiddleware);
 
-router.post('/login', async (req, res) => {
+router.post('/login', adminLoginLimiter, async (req, res) => {
   try {
     const { username, password } = req.body ?? {};
 
