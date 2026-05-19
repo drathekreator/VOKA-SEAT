@@ -47,7 +47,7 @@
  *   - mobile_webapp_ui/cart_payment/code.html (visual reference)
  */
 
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useAuth } from '../auth/useAuth';
 import type { CartItem } from '../../utils/cartCalculator';
 import { calculateTotal } from '../../utils/cartCalculator';
@@ -105,6 +105,19 @@ export default function CheckoutView({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submissionError, setSubmissionError] = useState<string | null>(null);
 
+  // Stable idempotency key per Checkout mount. Survives accidental
+  // double-taps on Pay Now (handler is also guarded by `isSubmitting`,
+  // but a transport retry that arrives at the backend twice can still
+  // produce duplicate orders without server-side dedup).
+  const idempotencyKey = useMemo(() => {
+    // crypto.randomUUID is widely supported in modern browsers; we
+    // fall back to a Math.random-based id for older runtimes.
+    if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) {
+      return crypto.randomUUID();
+    }
+    return `voka-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+  }, []);
+
   const total = calculateTotal(items);
   const isPayDisabled = selectedMethod === null || isSubmitting;
 
@@ -125,6 +138,7 @@ export default function CheckoutView({
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'Idempotency-Key': idempotencyKey,
           ...(token ? { Authorization: `Bearer ${token}` } : {}),
         },
         body: JSON.stringify({

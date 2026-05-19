@@ -3,6 +3,7 @@ import bcrypt from 'bcrypt';
 import { PrismaClient } from '@prisma/client';
 import { validateEmail } from '../validators/emailValidator';
 import { sanitizerMiddleware } from '../middleware/sanitizer';
+import { rateLimit } from '../middleware/rateLimit';
 import { signCustomerToken } from '../middleware/auth';
 
 const router = Router();
@@ -10,6 +11,23 @@ router.use(sanitizerMiddleware);
 
 const SALT_ROUNDS = 10;
 const MIN_PASSWORD_LENGTH = 8;
+
+/**
+ * Tighter rate limit for login (5 attempts/minute/IP) to make brute
+ * force credential stuffing meaningfully harder. Register is slightly
+ * more permissive (10/min) since legitimate batch onboarding from a
+ * shared IP (e.g. a campus event) shouldn't be blocked.
+ */
+const registerLimiter = rateLimit({
+  windowMs: 60_000,
+  max: 10,
+  message: 'Too many registration attempts. Please try again in a minute.',
+});
+const loginLimiter = rateLimit({
+  windowMs: 60_000,
+  max: 5,
+  message: 'Too many login attempts. Please try again in a minute.',
+});
 
 let prisma: PrismaClient;
 export function setAuthPrisma(client: PrismaClient): void {
@@ -27,7 +45,7 @@ export function setAuthPrisma(client: PrismaClient): void {
  *
  * Validates: Requirements 13.6, 13.9–13.13, 14.1, 15.7.
  */
-router.post('/register', async (req, res) => {
+router.post('/register', registerLimiter, async (req, res) => {
   try {
     const { email: rawEmail, name, password } = req.body ?? {};
 
@@ -96,7 +114,7 @@ router.post('/register', async (req, res) => {
  *
  * Validates: Requirements 13.4, 13.6, 15.7.
  */
-router.post('/login', async (req, res) => {
+router.post('/login', loginLimiter, async (req, res) => {
   try {
     const { email: rawEmail, password } = req.body ?? {};
 

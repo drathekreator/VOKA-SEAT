@@ -1,7 +1,10 @@
 import { Router, Response } from 'express';
 import { PrismaClient } from '@prisma/client';
 import type { Server as SocketIOServer } from 'socket.io';
+import PDFDocument from 'pdfkit';
 import { sanitizerMiddleware } from '../middleware/sanitizer';
+import { idempotency } from '../middleware/idempotency';
+import { rateLimit } from '../middleware/rateLimit';
 import {
   authMiddleware,
   adminAuthMiddleware,
@@ -16,6 +19,13 @@ const ACTIVE_STATUSES = ['pending', 'preparing', 'ready'] as const;
 const PAGE_SIZE = 20;
 
 /**
+ * Customers may cancel their own order ONLY within this many ms after
+ * placement and ONLY while the order is still `pending` (not yet picked
+ * up by the bartender). After that, only an admin can cancel.
+ */
+const CUSTOMER_CANCEL_WINDOW_MS = 5 * 60 * 1000;
+
+/**
  * Creates the orders REST API router.
  *
  * Auth model after the Section-21 rewrite (see requirements.md /
@@ -25,34 +35,19 @@ const PAGE_SIZE = 20;
  *                             JWT are persisted as Guest_Order
  *                             (userEmail = NULL). Property 20 forbids
  *                             rejecting solely for missing auth.
- *   PATCH /:id/claim          Customer JWT required — retroactively sets
- *                             userEmail on a Guest_Order whose userEmail
- *                             is currently NULL.
- *   GET   /history            Customer JWT required — paginated order
- *                             history filtered to the JWT's email.
- *   GET   /:id                Customer JWT required — order detail; the
- *                             order must belong to the authenticated
- *                             customer or the request is rejected.
- *   GET   /pending            Admin JWT required — pending orders queue.
- *   GET   /active             Admin JWT required — pending + preparing +
- *                             ready (everything that hasn't reached a
- *                             terminal state). Used by the redesigned
- *                             Order Queue with status-transition buttons.
+ *                             Rate-limited (10 req/min/IP) and
+ *                             idempotency-key-aware.
+ *   PATCH /:id/claim          Customer JWT required.
+ *   PATCH /:id/cancel         Customer JWT required — own pending
+ *                             orders only, within 5 minutes of placement.
+ *   GET   /history            Customer JWT required.
+ *   GET   /:id                Customer JWT required.
+ *   GET   /:id/receipt.pdf    Customer JWT required — PDF receipt
+ *                             stream for the order. Ownership-checked.
+ *   GET   /pending            Admin JWT required.
+ *   GET   /active             Admin JWT required.
  *   PATCH /:id/assign-seat    Admin JWT required.
- *   PATCH /:id/status         Admin JWT required. On success, broadcasts
- *                             `order_status_update` to all connected
- *                             WebSocket clients.
- *
- * Route registration order matters: Express matches in declaration
- * order, so we register all literal-path routes (e.g. `/history`,
- * `/pending`, `/active`) BEFORE any `/:id`-style parametric routes —
- * otherwise `/active` would be swallowed by `/:id` and rejected with
- * 401 before the admin auth check runs.
- *
- * @param prisma  Shared Prisma client.
- * @param io      Socket.IO server. Optional so existing unit tests that
- *                construct the router without IO context still work — in
- *                that case status updates simply skip the broadcast.
+ *   PATCH /:id/status         Admin JWT required.
  */
 export function createOrdersRouter(prisma: PrismaClient, io?: SocketIOServer): Router {
   const router = Router();
@@ -61,8 +56,21 @@ export function createOrdersRouter(prisma: PrismaClient, io?: SocketIOServer): R
   // ===================================================================
   // POST /  (optional customer JWT — orders without a valid JWT become
   //          Guest_Order rows with userEmail = NULL).
+  // Rate limit: 10 orders per minute per IP.
+  // Idempotency: clients send a stable Idempotency-Key header per
+  //              checkout attempt to prevent double-submission from
+  //              flaky networks or accidental double-taps.
   // ===================================================================
-  router.post('/', tryCustomerAuth, async (req: AuthenticatedRequest, res: Response) => {
+  router.post(
+    '/',
+    rateLimit({
+      windowMs: 60_000,
+      max: 10,
+      message: 'Too many orders. Please wait a moment and try again.',
+    }),
+    idempotency({ windowMs: 5 * 60_000 }),
+    tryCustomerAuth,
+    async (req: AuthenticatedRequest, res: Response) => {
     try {
       const { items } = req.body;
 
@@ -106,8 +114,6 @@ export function createOrdersRouter(prisma: PrismaClient, io?: SocketIOServer): R
         };
       });
 
-      // Property 20: a valid customer JWT ties the order to its email;
-      // otherwise persist as a Guest_Order with NULL.
       const userEmail = req.user?.email ?? null;
 
       const order = await prisma.$transaction(async (tx) => {
@@ -127,9 +133,6 @@ export function createOrdersRouter(prisma: PrismaClient, io?: SocketIOServer): R
 
       res.status(201).json(order);
 
-      // After persisting, notify connected admin tabs that a new pending
-      // order has appeared so the queue refreshes without a manual reload.
-      // Customer-side ignores `pending` notifications (only `ready`/etc).
       if (io) {
         broadcastOrderStatusUpdate(io, {
           id: order.id,
@@ -176,7 +179,7 @@ export function createOrdersRouter(prisma: PrismaClient, io?: SocketIOServer): R
   });
 
   // GET /pending (admin JWT) — kept for backwards compatibility with
-  // existing tests / older admin UIs that only look at NEW orders.
+  // existing tests / older admin UIs.
   router.get('/pending', adminAuthMiddleware, async (_req: AuthenticatedRequest, res: Response) => {
     try {
       const orders = await prisma.order.findMany({
@@ -194,10 +197,7 @@ export function createOrdersRouter(prisma: PrismaClient, io?: SocketIOServer): R
     }
   });
 
-  // GET /active (admin JWT) — pending + preparing + ready. The new
-  // Order Queue UI uses this so the queue stays populated until the
-  // order is completed or cancelled, allowing status-transition
-  // buttons to advance each order through its lifecycle.
+  // GET /active (admin JWT) — pending + preparing + ready.
   router.get('/active', adminAuthMiddleware, async (_req: AuthenticatedRequest, res: Response) => {
     try {
       const orders = await prisma.order.findMany({
@@ -251,6 +251,66 @@ export function createOrdersRouter(prisma: PrismaClient, io?: SocketIOServer): R
     } catch (error) {
       console.error('❌ Error claiming order:', error);
       res.status(500).json({ error: 'Failed to claim order' });
+    }
+  });
+
+  // PATCH /:id/cancel (customer JWT) — customer cancels their own order
+  // within CUSTOMER_CANCEL_WINDOW_MS of placement, only while status
+  // is still `pending`. Beyond that window or status, the bartender has
+  // already picked up the order — only an admin can cancel.
+  router.patch('/:id/cancel', authMiddleware, async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      const orderId = parseInt(req.params.id as string);
+      if (isNaN(orderId)) {
+        res.status(400).json({ error: 'Invalid order ID' });
+        return;
+      }
+
+      const existing = await prisma.order.findUnique({ where: { id: orderId } });
+      if (!existing) {
+        res.status(404).json({ error: 'Order not found' });
+        return;
+      }
+
+      // Ownership check (404 to avoid leaking other customers' orders).
+      if (existing.userEmail !== req.user!.email) {
+        res.status(404).json({ error: 'Order not found' });
+        return;
+      }
+
+      if (existing.status !== 'pending') {
+        res.status(409).json({
+          error: 'Order can no longer be cancelled — already in preparation.',
+        });
+        return;
+      }
+
+      const ageMs = Date.now() - existing.createdAt.getTime();
+      if (ageMs > CUSTOMER_CANCEL_WINDOW_MS) {
+        res.status(409).json({
+          error: 'Cancellation window expired (5 minutes after placement).',
+        });
+        return;
+      }
+
+      const updated = await recordOrderStatusChange(prisma, orderId, 'cancelled', {
+        items: { include: { menuItem: { select: { name: true } } } },
+      });
+
+      res.json(updated);
+
+      if (io && updated) {
+        broadcastOrderStatusUpdate(io, {
+          id: updated.id,
+          status: updated.status,
+          userEmail: (updated as { userEmail?: string | null }).userEmail ?? null,
+          seatId: (updated as { seatId?: number | null }).seatId ?? null,
+          updatedAt: (updated as { updatedAt?: Date | string }).updatedAt ?? new Date(),
+        });
+      }
+    } catch (error) {
+      console.error('❌ Error cancelling order:', error);
+      res.status(500).json({ error: 'Failed to cancel order' });
     }
   });
 
@@ -329,9 +389,6 @@ export function createOrdersRouter(prisma: PrismaClient, io?: SocketIOServer): R
 
       res.json(updatedOrder);
 
-      // Broadcast to all connected clients (admin tabs + customer
-      // browsers). Customer App listens for this event and surfaces a
-      // browser notification when their own order reaches `ready`.
       if (io && updatedOrder) {
         broadcastOrderStatusUpdate(io, {
           id: updatedOrder.id,
@@ -344,6 +401,135 @@ export function createOrdersRouter(prisma: PrismaClient, io?: SocketIOServer): R
     } catch (error) {
       console.error('❌ Error updating order status:', error);
       res.status(500).json({ error: 'Failed to update order status' });
+    }
+  });
+
+  // GET /:id/receipt.pdf (customer JWT, ownership-checked) — streamed
+  // PDF download. Layout: VOKAFE header, order number, item table,
+  // total in IDR, paid timestamp, footer thank-you.
+  router.get('/:id/receipt.pdf', authMiddleware, async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      const orderId = parseInt(req.params.id as string);
+      if (isNaN(orderId)) {
+        res.status(400).json({ error: 'Invalid order ID' });
+        return;
+      }
+
+      const order = await prisma.order.findUnique({
+        where: { id: orderId },
+        include: {
+          items: { include: { menuItem: { select: { name: true } } } },
+          seat: { select: { id: true, zone: true } },
+        },
+      });
+      if (!order) {
+        res.status(404).json({ error: 'Order not found' });
+        return;
+      }
+      if (order.userEmail !== req.user!.email) {
+        res.status(404).json({ error: 'Order not found' });
+        return;
+      }
+
+      // ---- Stream the PDF ----------------------------------------------
+      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader(
+        'Content-Disposition',
+        `attachment; filename="vokafe-receipt-${order.id}.pdf"`,
+      );
+
+      const doc = new PDFDocument({ size: 'A4', margin: 56 });
+      doc.pipe(res);
+
+      // Header — VOKAFE wordmark + tagline
+      doc.fillColor('#D81B60').fontSize(26).text('VOKAFE', { align: 'left' });
+      doc.fillColor('#1E293B').fontSize(10).text('Coffee · Comfort · Community', { align: 'left' });
+      doc.moveDown(1);
+
+      // Receipt label + order number
+      doc.fillColor('#000').fontSize(18).text('Order Receipt', { align: 'left' });
+      doc.fontSize(12).fillColor('#475569').text(`Order #${order.id}`);
+      doc
+        .fontSize(10)
+        .fillColor('#475569')
+        .text(`Placed: ${new Date(order.createdAt).toLocaleString('id-ID')}`);
+      if (order.userEmail) doc.text(`Customer: ${order.userEmail}`);
+      if (order.seat) doc.text(`Seat: #${order.seat.id} (${order.seat.zone})`);
+      doc.moveDown(1);
+
+      // Items table — name | qty | price | line total
+      const tableTop = doc.y;
+      const colName = 56;
+      const colQty = 320;
+      const colPrice = 380;
+      const colLine = 470;
+
+      doc.fontSize(10).fillColor('#1E293B');
+      doc.text('Item', colName, tableTop);
+      doc.text('Qty', colQty, tableTop, { width: 40, align: 'right' });
+      doc.text('Price', colPrice, tableTop, { width: 80, align: 'right' });
+      doc.text('Total', colLine, tableTop, { width: 80, align: 'right' });
+
+      doc
+        .moveTo(colName, tableTop + 14)
+        .lineTo(colLine + 80, tableTop + 14)
+        .strokeColor('#E5E7EB')
+        .stroke();
+
+      let y = tableTop + 22;
+      let total = 0;
+      const fmtIdr = (n: number) =>
+        'Rp ' + Math.round(n).toString().replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+
+      for (const item of order.items) {
+        const unit = Number(item.priceAtOrder);
+        const line = unit * item.quantity;
+        total += line;
+
+        doc.fillColor('#1E293B').fontSize(10);
+        doc.text(item.menuItem.name, colName, y, { width: colQty - colName - 8 });
+        doc.text(String(item.quantity), colQty, y, { width: 40, align: 'right' });
+        doc.text(fmtIdr(unit), colPrice, y, { width: 80, align: 'right' });
+        doc.text(fmtIdr(line), colLine, y, { width: 80, align: 'right' });
+        y += 18;
+      }
+
+      // Totals
+      doc
+        .moveTo(colName, y + 4)
+        .lineTo(colLine + 80, y + 4)
+        .strokeColor('#E5E7EB')
+        .stroke();
+
+      y += 16;
+      doc.fontSize(12).fillColor('#1E293B').text('Subtotal', colPrice, y, { width: 80, align: 'right' });
+      doc.text(fmtIdr(total), colLine, y, { width: 80, align: 'right' });
+
+      y += 22;
+      doc.fontSize(14).fillColor('#D81B60').text('TOTAL', colPrice, y, { width: 80, align: 'right' });
+      doc.text(fmtIdr(Number(order.totalAmount)), colLine, y, { width: 80, align: 'right' });
+
+      // Footer
+      doc.moveDown(4);
+      doc
+        .fontSize(10)
+        .fillColor('#475569')
+        .text(
+          'Thank you for visiting VOKAFE. We hope to see you again.',
+          { align: 'center' },
+        );
+      doc.text(`Status: ${order.status.toUpperCase()}`, { align: 'center' });
+
+      doc.end();
+    } catch (error) {
+      console.error('❌ Error generating receipt PDF:', error);
+      // PDFKit may have already written headers/bytes; only send a JSON
+      // error if we haven't started streaming yet.
+      if (!res.headersSent) {
+        res.status(500).json({ error: 'Failed to generate receipt' });
+      } else {
+        res.end();
+      }
     }
   });
 
@@ -372,8 +558,6 @@ export function createOrdersRouter(prisma: PrismaClient, io?: SocketIOServer): R
         return;
       }
 
-      // Customers may only view their own orders. Guest_Orders
-      // (userEmail = NULL) and other customers' orders both 404 out.
       if (order.userEmail !== req.user!.email) {
         res.status(404).json({ error: 'Order not found' });
         return;

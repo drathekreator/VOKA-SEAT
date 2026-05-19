@@ -4,6 +4,7 @@ import Tablespace from './components/Tablespace'
 import type { TablespaceSeat } from './components/Tablespace'
 import OrderQueue from './components/OrderQueue'
 import type { Order, OrderStatus } from './components/OrderQueue'
+import BarView from './components/BarView'
 import Inventory from './components/Inventory'
 import Analytics from './components/Analytics'
 import AssignTableDialog from './components/AssignTableDialog'
@@ -47,10 +48,11 @@ function adaptOrder(api: ApiOrder): Order {
  * Tabs that the TopNavBar search bar can filter. The search input is
  * disabled on tabs not in this set so we don't surface a fake feature.
  */
-const SEARCHABLE_TABS = new Set(['orders', 'inventory']);
+const SEARCHABLE_TABS = new Set(['orders', 'bar', 'inventory']);
 
 const SEARCH_PLACEHOLDER: Record<string, string> = {
   orders: 'Search orders by customer or item…',
+  bar: 'Search active orders…',
   inventory: 'Search inventory items…',
 };
 
@@ -84,10 +86,12 @@ function App() {
 
   // Apply the TopNavBar search query against the active orders list.
   // The match is case-insensitive against customer name, item names, or
-  // order id (the user might paste #42 or just 42).
+  // order id (the user might paste #42 or just 42). Used by both the
+  // Orders tab and the Bar View tab.
   const filteredOrders = useMemo<Order[]>(() => {
     const q = searchQuery.trim().toLowerCase();
-    if (!q || activeTab !== 'orders') return activeOrders;
+    if (!q || (activeTab !== 'orders' && activeTab !== 'bar'))
+      return activeOrders;
     return activeOrders.filter((order) => {
       if (String(order.id).includes(q)) return true;
       if (order.customerName.toLowerCase().includes(q)) return true;
@@ -251,6 +255,17 @@ function App() {
         return (
           <OrderQueue
             orders={filteredOrders}
+            onAssignTable={handleAssignTable}
+            onUpdateStatus={handleUpdateStatus}
+          />
+        );
+
+      case 'bar':
+        return (
+          <BarView
+            orders={filteredOrders}
+            seats={tablespaceSeats}
+            isConnected={isConnected}
             onAssignTable={handleAssignTable}
             onUpdateStatus={handleUpdateStatus}
           />

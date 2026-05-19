@@ -42,6 +42,13 @@ export interface BottomNavProps {
    * (e.g. an unauthenticated preview); defaults to 0.
    */
   cartCount?: number;
+  /**
+   * Number of in-progress orders attached to the authenticated customer
+   * (status `pending`, `preparing`, or `ready`). Used to render a pulse
+   * badge on the Profile tab so customers always know there's something
+   * to look at in Order History. Optional; defaults to 0.
+   */
+  activeOrderCount?: number;
 }
 
 interface TabConfig {
@@ -62,8 +69,10 @@ export default function BottomNav({
   activeTab,
   onTabChange,
   cartCount = 0,
+  activeOrderCount = 0,
 }: BottomNavProps) {
   const badge = formatBadge(cartCount);
+  const profileBadge = formatBadge(activeOrderCount);
 
   return (
     <nav
@@ -106,6 +115,15 @@ export default function BottomNav({
                         data-testid="cart-badge"
                       >
                         {badge}
+                      </span>
+                    )}
+                    {tab.id === 'profile' && profileBadge !== null && (
+                      <span
+                        className="absolute -top-1.5 -right-2.5 min-w-[18px] h-[18px] flex items-center justify-center rounded-full bg-amber-500 text-white text-[10px] font-bold px-1 leading-none border-2 border-white animate-pulse"
+                        data-testid="profile-badge"
+                        aria-label={`${activeOrderCount} active order${activeOrderCount === 1 ? '' : 's'}`}
+                      >
+                        {profileBadge}
                       </span>
                     )}
                   </span>
