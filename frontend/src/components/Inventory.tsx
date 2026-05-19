@@ -150,7 +150,7 @@ const EditModal: React.FC<EditModalProps> = ({ item, onClose, onSave }) => {
   );
 };
 
-const Inventory: React.FC = () => {
+const Inventory: React.FC<{ searchQuery?: string }> = ({ searchQuery = '' }) => {
   const [items, setItems] = useState<InventoryItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -195,7 +195,19 @@ const Inventory: React.FC = () => {
     [],
   );
 
-  // Items that need restocking (below threshold)
+  // Apply optional search filter (case-insensitive substring match
+  // against item name + unit). Empty query passes everything through.
+  const visibleItems = items.filter((item) => {
+    const q = searchQuery.trim().toLowerCase();
+    if (!q) return true;
+    return (
+      item.itemName.toLowerCase().includes(q) ||
+      item.unit.toLowerCase().includes(q)
+    );
+  });
+
+  // Items that need restocking (below threshold) — restock alerts always
+  // reference the FULL inventory, not the filtered subset.
   const restockItems = items.filter(
     (item) => classifyInventoryAlert(item.quantity, item.minimumThreshold) !== 'none'
   );
@@ -304,7 +316,7 @@ const Inventory: React.FC = () => {
             </tr>
           </thead>
           <tbody>
-            {items.map((item) => {
+            {visibleItems.map((item) => {
               const alert = classifyInventoryAlert(item.quantity, item.minimumThreshold);
               const rowBg =
                 alert === 'red'
@@ -374,10 +386,14 @@ const Inventory: React.FC = () => {
           </tbody>
         </table>
 
-        {items.length === 0 && (
+        {visibleItems.length === 0 && (
           <div className="flex items-center justify-center py-12 text-on-surface-variant">
             <span className="material-symbols-outlined mr-2">inventory_2</span>
-            <span className="font-body text-body">No inventory items found.</span>
+            <span className="font-body text-body">
+              {items.length === 0
+                ? 'No inventory items found.'
+                : 'No items match your search.'}
+            </span>
           </div>
         )}
       </div>

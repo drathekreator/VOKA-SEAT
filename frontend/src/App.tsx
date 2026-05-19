@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import Sidebar from './components/Sidebar'
 import Tablespace from './components/Tablespace'
 import type { TablespaceSeat } from './components/Tablespace'
@@ -10,13 +10,9 @@ import AssignTableDialog from './components/AssignTableDialog'
 import type { AssignTableSeat } from './components/AssignTableDialog'
 import { useSeats } from './hooks/useSeats'
 import { useOrderUpdates } from './hooks/useOrderUpdates'
+import { useAdminAuth } from './admin/auth/useAdminAuth'
 import { adminFetch } from './admin/adminFetch'
 
-/**
- * Shape of an order returned by GET /api/orders/active. The shape is a
- * superset of the Order interface that OrderQueue consumes — we adapt
- * it inline.
- */
 interface ApiOrder {
   id: number;
   userEmail: string | null;
@@ -47,13 +43,32 @@ function adaptOrder(api: ApiOrder): Order {
   };
 }
 
+/**
+ * Tabs that the TopNavBar search bar can filter. The search input is
+ * disabled on tabs not in this set so we don't surface a fake feature.
+ */
+const SEARCHABLE_TABS = new Set(['orders', 'inventory']);
+
+const SEARCH_PLACEHOLDER: Record<string, string> = {
+  orders: 'Search orders by customer or item…',
+  inventory: 'Search inventory items…',
+};
+
 function App() {
   const [activeTab, setActiveTab] = useState('dashboard');
   const [activeOrders, setActiveOrders] = useState<Order[]>([]);
   const [assignDialogOpen, setAssignDialogOpen] = useState(false);
   const [assignOrderId, setAssignOrderId] = useState<number | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
 
   const { seats, isConnected } = useSeats();
+  const { username, logout } = useAdminAuth();
+
+  // Reset search query whenever the active tab changes so the input
+  // doesn't carry stale text across views.
+  useEffect(() => {
+    setSearchQuery('');
+  }, [activeTab]);
 
   const tablespaceSeats: TablespaceSeat[] = seats.map((s) => ({
     id: s.id,
@@ -67,7 +82,19 @@ function App() {
     zone: s.zone,
   }));
 
-  // Initial fetch + manual refresh helper.
+  // Apply the TopNavBar search query against the active orders list.
+  // The match is case-insensitive against customer name, item names, or
+  // order id (the user might paste #42 or just 42).
+  const filteredOrders = useMemo<Order[]>(() => {
+    const q = searchQuery.trim().toLowerCase();
+    if (!q || activeTab !== 'orders') return activeOrders;
+    return activeOrders.filter((order) => {
+      if (String(order.id).includes(q)) return true;
+      if (order.customerName.toLowerCase().includes(q)) return true;
+      return order.items.some((it) => it.name.toLowerCase().includes(q));
+    });
+  }, [activeOrders, searchQuery, activeTab]);
+
   const fetchActiveOrders = useCallback(async () => {
     try {
       const response = await adminFetch('/api/orders/active');
@@ -84,18 +111,10 @@ function App() {
     fetchActiveOrders();
   }, [fetchActiveOrders]);
 
-  // Live updates: when any order status changes (including new pending
-  // orders coming in from POST /api/orders), reconcile the queue.
-  // Terminal transitions (`completed` / `cancelled`) drop the order
-  // from the active queue. Everything else updates in-place — and if
-  // we don't have the order yet (race condition: status update arrived
-  // before the initial fetch returned), we re-fetch the full list.
   useOrderUpdates((update) => {
     setActiveOrders((prev) => {
       const idx = prev.findIndex((o) => o.id === update.orderId);
       if (idx === -1) {
-        // We don't have this order yet — kick off a refetch out-of-band.
-        // Returning prev keeps state intact while the fetch runs.
         if (update.status === 'pending' || update.status === 'preparing' || update.status === 'ready') {
           fetchActiveOrders();
         }
@@ -128,8 +147,6 @@ function App() {
       });
 
       if (response.ok) {
-        // Optimistic update — backend doesn't broadcast for assign-seat
-        // alone (only for status changes), so reflect it locally.
         setActiveOrders((prev) =>
           prev.map((o) => (o.id === orderId ? { ...o, seatId } : o)),
         );
@@ -147,12 +164,6 @@ function App() {
     setAssignOrderId(null);
   }, []);
 
-  /**
-   * Advance an order to a new status via PATCH /api/orders/:id/status.
-   * The backend broadcasts `order_status_update`, so the local queue
-   * reconciles automatically via useOrderUpdates above. We don't need
-   * an optimistic update here.
-   */
   const handleUpdateStatus = useCallback(async (orderId: number, status: OrderStatus) => {
     try {
       await adminFetch(`/api/orders/${orderId}/status`, {
@@ -163,6 +174,12 @@ function App() {
       // Best-effort — if the request fails, the queue stays as-is.
     }
   }, []);
+
+  /** First letter of the signed-in admin username, uppercased. */
+  const avatarLetter = (username ?? 'A').charAt(0).toUpperCase();
+
+  const isSearchable = SEARCHABLE_TABS.has(activeTab);
+  const placeholderForTab = SEARCH_PLACEHOLDER[activeTab] ?? 'Search…';
 
   const renderActiveView = () => {
     switch (activeTab) {
@@ -176,9 +193,7 @@ function App() {
               </p>
             </div>
 
-            {/* Summary Cards */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-              {/* Seats Available */}
               <div className="bg-surface rounded-lg border border-border-soft shadow-sm p-5">
                 <div className="flex items-center gap-3 mb-3">
                   <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
@@ -192,7 +207,6 @@ function App() {
                 </p>
               </div>
 
-              {/* Seats Occupied */}
               <div className="bg-surface rounded-lg border border-border-soft shadow-sm p-5">
                 <div className="flex items-center gap-3 mb-3">
                   <div className="w-10 h-10 rounded-full bg-[#D81B60]/10 flex items-center justify-center">
@@ -206,7 +220,6 @@ function App() {
                 </p>
               </div>
 
-              {/* Active Orders */}
               <div className="bg-surface rounded-lg border border-border-soft shadow-sm p-5">
                 <div className="flex items-center gap-3 mb-3">
                   <div className="w-10 h-10 rounded-full bg-amber-100 flex items-center justify-center">
@@ -217,7 +230,6 @@ function App() {
                 <p className="text-2xl font-bold text-on-background">{activeOrders.length}</p>
               </div>
 
-              {/* Connection Status */}
               <div className="bg-surface rounded-lg border border-border-soft shadow-sm p-5">
                 <div className="flex items-center gap-3 mb-3">
                   <div className={`w-10 h-10 rounded-full flex items-center justify-center ${isConnected ? 'bg-green-100' : 'bg-red-100'}`}>
@@ -238,7 +250,7 @@ function App() {
       case 'orders':
         return (
           <OrderQueue
-            orders={activeOrders}
+            orders={filteredOrders}
             onAssignTable={handleAssignTable}
             onUpdateStatus={handleUpdateStatus}
           />
@@ -248,7 +260,7 @@ function App() {
         return <Tablespace seats={tablespaceSeats} />;
 
       case 'inventory':
-        return <Inventory />;
+        return <Inventory searchQuery={searchQuery} />;
 
       case 'analytics':
         return <Analytics />;
@@ -262,31 +274,80 @@ function App() {
     <div className="flex h-screen bg-background font-sans text-on-background overflow-hidden">
       <Sidebar activeTab={activeTab} setActiveTab={setActiveTab} />
       <main className="ml-[240px] flex-1 h-full overflow-y-auto pt-navbar-height relative">
-        {/* TopNavBar */}
-        <header className="fixed top-0 right-0 left-[240px] h-navbar-height bg-surface/80 backdrop-blur-md border-b border-border-soft flex justify-between items-center px-container-margin z-20">
-          <div className="relative flex items-center bg-surface-container rounded-full px-4 py-2 w-72 focus-within:ring-2 focus-within:ring-primary/20">
-            <span className="material-symbols-outlined text-on-surface-variant mr-2">search</span>
-            <input className="bg-transparent border-none outline-none text-body w-full placeholder-on-surface-variant p-0 focus:ring-0" placeholder="Search..." type="text" />
+        {/* TopNavBar — search is functional on Orders / Inventory tabs.
+            Other tabs surface a disabled state so we don't pretend to
+            offer a feature we don't support. */}
+        <header
+          className="fixed top-0 right-0 left-[240px] h-navbar-height bg-surface/80 backdrop-blur-md border-b border-border-soft flex justify-between items-center px-container-margin z-20"
+          data-testid="admin-topnav"
+        >
+          <div className="flex-1 max-w-md">
+            <div
+              className={`relative flex items-center bg-surface-container rounded-full px-4 py-2 transition-opacity ${
+                isSearchable ? 'opacity-100 focus-within:ring-2 focus-within:ring-primary/20' : 'opacity-50'
+              }`}
+            >
+              <span className="material-symbols-outlined text-on-surface-variant mr-2">search</span>
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder={isSearchable ? placeholderForTab : 'Search not available on this tab'}
+                disabled={!isSearchable}
+                data-testid="admin-topnav-search"
+                className="bg-transparent border-none outline-none text-body w-full placeholder-on-surface-variant p-0 focus:ring-0 disabled:cursor-not-allowed"
+              />
+              {searchQuery && (
+                <button
+                  type="button"
+                  onClick={() => setSearchQuery('')}
+                  aria-label="Clear search"
+                  data-testid="admin-topnav-search-clear"
+                  className="ml-2 text-on-surface-variant hover:text-on-surface"
+                >
+                  <span className="material-symbols-outlined text-[18px]">close</span>
+                </button>
+              )}
+            </div>
           </div>
-          <div className="flex items-center gap-2">
+
+          <div className="flex items-center gap-3">
             {/* Connection status indicator */}
-            {!isConnected && (
-              <div className="flex items-center gap-1 px-3 py-1 bg-red-100 text-red-700 rounded-full text-sm font-medium mr-2">
-                <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse"></span>
-                Offline
+            <div
+              className={`flex items-center gap-1 px-3 py-1 rounded-full text-sm font-medium ${
+                isConnected
+                  ? 'bg-emerald-100 text-emerald-700'
+                  : 'bg-red-100 text-red-700'
+              }`}
+              data-testid="admin-topnav-connection"
+            >
+              <span
+                className={`w-2 h-2 rounded-full ${
+                  isConnected ? 'bg-emerald-500' : 'bg-red-500 animate-pulse'
+                }`}
+              />
+              {isConnected ? 'Live' : 'Offline'}
+            </div>
+
+            {/* Signed-in admin avatar (letter only — no stock image) */}
+            <div className="flex items-center gap-2">
+              <div
+                className="w-9 h-9 rounded-full bg-primary text-on-primary flex items-center justify-center font-bold text-sm"
+                aria-label={`Signed in as ${username ?? 'admin'}`}
+                data-testid="admin-topnav-avatar"
+              >
+                {avatarLetter}
               </div>
-            )}
-            <button className="p-2 hover:bg-surface-container-high rounded-full transition-colors text-on-surface-variant">
-              <span className="material-symbols-outlined">notifications</span>
-            </button>
-            <button className="p-2 hover:bg-surface-container-high rounded-full transition-colors text-on-surface-variant">
-              <span className="material-symbols-outlined">settings</span>
-            </button>
-            <button className="p-2 hover:bg-surface-container-high rounded-full transition-colors text-on-surface-variant">
-              <span className="material-symbols-outlined">help</span>
-            </button>
-            <div className="ml-2 w-10 h-10 rounded-full border border-border-soft overflow-hidden">
-              <img alt="Profile" className="w-full h-full object-cover" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCkLWTqGDQAz7r7I8DDJmTcQaIeqxy7YggAAplz9fW-lrLRl9Ls1CLpVVfpxmnbb8qCgVPrsaH_UASpYRK8Wc3gqsL31VNJNE2pR_buWv5EWirYeNBeTiskI2RfqyR8abotszBG5-GiG5f18AsRO56XPqu8oWJmudR2h_Xdc9vAikkofEppM4MKM2vqAClNZT82ONbPHm5O6QpQ8k4mw9uz2ZaFGhgLW7LJr3eQRg4xM-C5b03lJEYsnrboUwZlKdrSne26eqtlh-4" />
+              <button
+                type="button"
+                onClick={() => logout()}
+                data-testid="admin-topnav-logout"
+                className="px-3 py-1.5 text-sm rounded-lg border border-outline-variant text-on-surface-variant hover:bg-surface-container-high active:scale-95 transition-all flex items-center gap-1"
+                aria-label="Log out"
+              >
+                <span className="material-symbols-outlined text-[18px]">logout</span>
+                Logout
+              </button>
             </div>
           </div>
         </header>
