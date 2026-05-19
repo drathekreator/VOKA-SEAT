@@ -37,5 +37,12 @@
     "typescript-eslint": "^8.59.2",
     "vite": "^8.0.12",
     "vitest": "^4.1.6"
+  },
+  "//security-overrides": [
+    "Pin transitively-pulled packages with known advisories to safe versions.",
+    "ws — GHSA-58qx-3vcg-4xpx (uninitialized memory disclosure, fixed in 8.20.1)"
+  ],
+  "overrides": {
+    "ws": "^8.20.1"
   }
 }

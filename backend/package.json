@@ -41,5 +41,15 @@
     "ts-node": "^10.9.2",
     "typescript": "^6.0.3",
     "vitest": "^4.1.6"
+  },
+  "//security-overrides": [
+    "Pin transitively-pulled packages with known advisories to safe versions.",
+    "These overrides are checked against `npm audit` after every dep change.",
+    "ws       — GHSA-58qx-3vcg-4xpx (uninitialized memory disclosure, fixed in 8.20.1)",
+    "hono     — GHSA-92pp-h63x-v22m (serveStatic path traversal, fixed in 1.19.13)"
+  ],
+  "overrides": {
+    "ws": "^8.20.1",
+    "@hono/node-server": "^1.19.13"
   }
 }
