@@ -1,43 +1,47 @@
 /**
  * ============================================================================
- * VOKA-SEAT Node — ESP32 + PIR HC-SR501
+ * VOKA-SEAT Node — ESP32 + PIR HC-SR501 (Presence Detection at Cafe Table)
  * ============================================================================
  *
- * ATURAN WAJIB (AGENTS.md §3 — Red Rules, JANGAN diubah):
- *   1. Sensor EKSKLUSIF: PIR HC-SR501 (passive infrared, deteksi panas tubuh)
- *   2. Pemasangan: under-table mounting, double-sided industrial tape
- *   3. Orientasi casing: 30-45 derajat ke bawah-depan menghadap kursi
- *   4. Vacant Timeout: 10 menit pergerakan berhenti sebelum status berubah ke 0
- *   5. Debounce: HIGH harus bertahan ≥ 200 ms sebelum dianggap valid
- *   6. Polling: ≤ 100 ms interval
+ * HARDWARE SETUP (FIXED — JANGAN DIUBAH PER NODE):
+ *   - PIR HC-SR501 OUT  → ESP32 GPIO 27 (digital INPUT)
+ *   - PIR VCC           → ESP32 5V (atau 3V3 — module HC-SR501 tolerate keduanya)
+ *   - PIR GND           → ESP32 GND
+ *   - Trimpot Time Delay PIR  : putar penuh ke MINIMUM (~3 detik)
+ *   - Jumper Mode             : posisi H (Repeat Trigger)
  *
- * PIN MAPPING (WAJIB):
- *   PIR VCC  → ESP32 VCC (3V3 atau 5V)
- *   PIR GND  → ESP32 GND
- *   PIR OUT  → ESP32 GPIO 27 (INPUT digital)
+ *   Catatan: kalibrasi delay/repeat dilakukan di SOFTWARE (lihat di bawah).
+ *   Hardware Time-Delay sengaja di-minimum-kan agar firmware yang menentukan
+ *   threshold debouncing.
  *
- * ALUR DATA:
- *   PIR detect → debounce 200ms → ESP32 set status = 1
- *      ↓
- *   Publish JSON ke broker MQTT publik:
- *      vokafe.duckdns.org:1884 / topic: vokafe/iot/telemetry
- *      Payload: {"id_kursi": <1-24>, "status": <0|1>}
- *      ↓
- *   Backend (voka_seat_backend) terima → update PostgreSQL
- *      → broadcast WebSocket ke semua client
- *      → UI customer + admin update warna kursi instant
+ * SOFTWARE CALIBRATION (FILTER DEBOUNCING):
+ *   1. Threshold Trigger ON  : 2 detik
+ *      Sinyal HIGH harus stabil 2 detik berturut-turut sebelum status
+ *      berubah ke "Terisi". Kalau dalam 2 detik sinyal sempat LOW, timer
+ *      di-reset (dianggap noise/fluktuasi).
  *
- * LIBRARY DEPENDENCIES (Arduino Library Manager):
+ *   2. Threshold Trigger OFF : 5 menit (Grace Period)
+ *      Saat status "Terisi" dan PIR membaca LOW, jangan langsung ubah ke
+ *      "Kosong". Mulai grace timer 300.000 ms. Kalau dalam masa itu ada
+ *      HIGH → reset timer (pertahankan "Terisi"). Kalau timer expire tanpa
+ *      gerakan → ubah ke "Kosong".
+ *
+ *   Logika full non-blocking pakai millis() absolut. TIDAK ada delay() di
+ *   manapun di runtime loop.
+ *
+ * INTEGRASI BACKEND (VOKA-SEAT cloud, sudah live):
+ *   Broker MQTT publik : vokafe.duckdns.org:1884 (TCP, allow_anonymous true)
+ *   Topic              : vokafe/iot/telemetry
+ *   Payload format     : {"id_kursi": <1..24>, "status": <0|1>}
+ *
+ * LIBRARY DEPENDENCIES (Arduino IDE → Library Manager):
  *   - WiFi.h           (built-in ESP32 core)
- *   - PubSubClient     by Nick O'Leary       (MQTT client)
- *   - ArduinoJson      by Benoit Blanchon    (JSON serializer, v6 atau v7)
+ *   - PubSubClient     by Nick O'Leary
+ *   - ArduinoJson      by Benoit Blanchon (v6 atau v7)
  *
  * BOARD CONFIG (Arduino IDE → Tools):
- *   Board     : ESP32 Dev Module (atau board spesifik kamu)
+ *   Board     : ESP32 Dev Module
  *   Upload    : 921600 baud
- *   Flash     : 4MB / 80MHz
- *   Partition : Default
- *
  * ============================================================================
  */
 
@@ -46,66 +50,79 @@
 #include <ArduinoJson.h>
 
 // ============================================================================
-// KONFIGURASI — SESUAIKAN PER NODE SEBELUM UPLOAD
+// KONFIGURASI — UBAH SEBELUM UPLOAD KE TIAP NODE
 // ============================================================================
 
-// --- Identitas Node ---
-// SETIAP ESP32 mewakili SATU kursi. Ganti SEAT_ID dan MQTT_CLIENT_ID
-// per node sesuai posisi pemasangan fisik.
-const int   SEAT_ID         = 5;             // ID kursi (1–24)
+// --- Identitas Node (per kursi, ganti per upload) ---
+const int   SEAT_ID         = 5;              // ID kursi (1-24)
 const char* MQTT_CLIENT_ID  = "voka-seat-05"; // Unik per node
 
 // --- WiFi ---
-// Sesuaikan dengan jaringan yang digunakan ESP32 untuk konek ke internet.
-// Untuk production sesuai design.md, harusnya hidden SSID VLAN 20 (VOKAFE-IoT).
-// Untuk demo / development, bisa pakai WiFi rumah / hotspot.
 const char* WIFI_SSID     = "ganti-dengan-ssid";
-const char* WIFI_PASSWORD = "ganti-dengan-password-wifi";
+const char* WIFI_PASSWORD = "ganti-dengan-password";
 
-// --- MQTT Broker (production) ---
+// --- MQTT Broker (production VOKA-SEAT) ---
 const char* MQTT_BROKER_HOST = "vokafe.duckdns.org";
 const int   MQTT_BROKER_PORT = 1884;
 const char* MQTT_TOPIC       = "vokafe/iot/telemetry";
 
-// MVP: broker pakai allow_anonymous = true. Username/password kosong.
-// Untuk production hardening (lihat deploy/DEPLOY_COMMANDS.md §10),
-// ganti dua baris di bawah dengan kredensial dari mosquitto_passwd.
+// MVP: broker allow_anonymous=true. Kosongkan dua baris ini.
+// Kalau broker di-harden (mosquitto_passwd), isi sesuai kredensial.
 const char* MQTT_USERNAME = "";
 const char* MQTT_PASSWORD = "";
 
 // --- Pin Hardware ---
-const int PIR_PIN = 27;               // GPIO 27 — PIR HC-SR501 OUT
+constexpr int PIR_PIN = 27;
 
-// --- Timing (milidetik) ---
-const unsigned long POLL_INTERVAL_MS    = 100;        // Polling setiap 100ms
-const unsigned long DEBOUNCE_MS         = 200;        // HIGH harus bertahan 200ms
-const unsigned long VACANT_TIMEOUT_MS   = 600000UL;   // 10 menit = 600.000ms
-const unsigned long WIFI_RECONNECT_MS   = 5000;       // Reconnect WiFi tiap 5 detik
-const unsigned long MQTT_RETRY_DELAY_MS = 2000;       // Retry MQTT publish tiap 2 detik
-const int           MQTT_MAX_RETRIES    = 3;          // Maksimal 3x retry per publish
+// --- Timing Threshold (filter debouncing software) ---
+constexpr unsigned long TRIGGER_ON_MS   = 2UL * 1000UL;       // 2 detik (stable HIGH)
+constexpr unsigned long TRIGGER_OFF_MS  = 5UL * 60UL * 1000UL; // 300.000 ms = 5 menit (grace period)
+constexpr unsigned long POLL_INTERVAL_MS = 50;                 // Polling tiap 50ms (cukup responsif)
 
-// --- Fault Detection (opsional) ---
-const unsigned long FAULT_TIMEOUT_MS = 3600000UL;     // 60 menit tanpa perubahan
+// --- Reconnect / retry timings ---
+constexpr unsigned long WIFI_RETRY_INTERVAL_MS = 5UL * 1000UL;
+constexpr unsigned long MQTT_RETRY_INTERVAL_MS = 2UL * 1000UL;
+constexpr int           MQTT_PUBLISH_RETRIES   = 3;
 
 // ============================================================================
-// STATE VARIABLES — JANGAN diubah manual
+// STATE — JANGAN diubah manual
 // ============================================================================
 WiFiClient   espClient;
 PubSubClient mqttClient(espClient);
 
-int  currentStatus      = 0;
-bool pirHighStarted     = false;
-unsigned long pirHighStartTime = 0;
-unsigned long lastMotionTime   = 0;
-unsigned long lastPollTime     = 0;
-unsigned long lastStatusChange = 0;
+// Output state — variabel global yang merepresentasikan status akhir meja.
+// false = Kosong (Vacant), true = Terisi (Occupied).
+bool isOccupied = false;
+
+// Trigger ON debounce: timestamp pertama kali PIR membaca HIGH dalam
+// kondisi VACANT. Jika tetap HIGH selama TRIGGER_ON_MS, naik ke OCCUPIED.
+// Nilai 0 = belum ada timer berjalan.
+unsigned long highSinceMs = 0;
+
+// Trigger OFF grace period: timestamp pertama kali PIR membaca LOW dalam
+// kondisi OCCUPIED. Jika seterusnya LOW selama TRIGGER_OFF_MS, turun ke
+// VACANT. Setiap kali muncul HIGH dalam grace window, timer ini di-RESET
+// kembali ke 0.
+unsigned long lowSinceMs = 0;
+
+// Polling guard
+unsigned long lastPollMs = 0;
+
+// Reconnect guards
+unsigned long lastWifiAttemptMs = 0;
+unsigned long lastMqttAttemptMs = 0;
 
 // ============================================================================
 // SETUP
 // ============================================================================
 void setup() {
   Serial.begin(115200);
-  delay(100);
+
+  // Tunggu Serial up tanpa pakai delay() — pakai millis polling.
+  unsigned long t0 = millis();
+  while (!Serial && (millis() - t0) < 1000UL) {
+    yield();
+  }
 
   Serial.println("\n========================================");
   Serial.println("  VOKA-SEAT Node");
@@ -113,166 +130,194 @@ void setup() {
   Serial.printf ("  Client ID  : %s\n", MQTT_CLIENT_ID);
   Serial.printf ("  Broker     : %s:%d\n", MQTT_BROKER_HOST, MQTT_BROKER_PORT);
   Serial.printf ("  Topic      : %s\n", MQTT_TOPIC);
+  Serial.printf ("  Trigger ON : %lu ms (stable HIGH)\n", TRIGGER_ON_MS);
+  Serial.printf ("  Trigger OFF: %lu ms (grace period)\n", TRIGGER_OFF_MS);
   Serial.println("========================================\n");
 
   pinMode(PIR_PIN, INPUT);
 
-  currentStatus    = 0;
-  lastMotionTime   = millis();
-  lastStatusChange = millis();
+  // Initial state: VACANT
+  isOccupied = false;
+  highSinceMs = 0;
+  lowSinceMs  = 0;
 
-  // Set buffer size untuk PubSubClient (default 256 cukup, payload kita kecil)
+  // PubSubClient setup (config saja — koneksi aktual di-handle loop ensureConnected())
   mqttClient.setBufferSize(256);
   mqttClient.setKeepAlive(60);
   mqttClient.setServer(MQTT_BROKER_HOST, MQTT_BROKER_PORT);
 
-  connectWiFi();
-  connectMQTT();
+  // Coba konek WiFi + MQTT awal (non-blocking, akan retry di loop kalau gagal)
+  ensureWifiConnected();
+  ensureMqttConnected();
 
-  // Publish status awal (vacant) saat boot — sync state ke backend
-  publishStatus();
+  // Publish state awal supaya backend tahu node ini live (status=0)
+  if (mqttClient.connected()) {
+    onStateChange();
+  }
 
-  Serial.println("✅ Setup complete. Polling started.\n");
+  Serial.println("Setup complete. Loop started.\n");
 }
 
 // ============================================================================
-// LOOP
+// LOOP — non-blocking, semua timing pakai millis()
 // ============================================================================
 void loop() {
-  unsigned long now = millis();
-
-  // ---- Health: WiFi + MQTT keepalive ----
-  if (WiFi.status() != WL_CONNECTED) {
-    Serial.println("⚠️  WiFi disconnected, reconnecting...");
-    connectWiFi();
-    return;
-  }
-  if (!mqttClient.connected()) {
-    Serial.println("⚠️  MQTT disconnected, reconnecting...");
-    connectMQTT();
-    if (!mqttClient.connected()) {
-      delay(WIFI_RECONNECT_MS);
-      return;
-    }
-    // Pada reconnect, kirim ulang state terakhir untuk sync
-    publishStatus();
-  }
+  // Pelihara WiFi & MQTT keepalive. Kedua fungsi non-blocking — hanya
+  // attempt reconnect kalau interval retry sudah lewat.
+  ensureWifiConnected();
+  ensureMqttConnected();
   mqttClient.loop();
 
-  // ---- Polling guard ----
-  if (now - lastPollTime < POLL_INTERVAL_MS) return;
-  lastPollTime = now;
+  unsigned long now = millis();
 
-  // ---- Baca PIR ----
+  // Polling guard: hanya proses tiap POLL_INTERVAL_MS untuk hemat CPU
+  if (now - lastPollMs < POLL_INTERVAL_MS) return;
+  lastPollMs = now;
+
   int pirReading = digitalRead(PIR_PIN);
 
-  // ---- Debounce HIGH (200ms) ----
-  if (pirReading == HIGH) {
-    if (!pirHighStarted) {
-      pirHighStarted   = true;
-      pirHighStartTime = now;
-    } else if (now - pirHighStartTime >= DEBOUNCE_MS) {
-      // Gerakan ter-debounce, refresh "last motion"
-      lastMotionTime = now;
+  if (!isOccupied) {
+    // ------------------------------------------------------------------
+    // Mode 1: VACANT → tunggu HIGH stabil selama TRIGGER_ON_MS (2 detik)
+    // ------------------------------------------------------------------
+    if (pirReading == HIGH) {
+      if (highSinceMs == 0) {
+        // Pertama kali HIGH dalam fase ini — mulai timer trigger-on.
+        highSinceMs = now;
+      } else if (now - highSinceMs >= TRIGGER_ON_MS) {
+        // HIGH sudah stabil selama TRIGGER_ON_MS → naik ke OCCUPIED.
+        // Reset kedua timer agar fase OFF mulai dari nol.
+        isOccupied  = true;
+        highSinceMs = 0;
+        lowSinceMs  = 0;
+        onStateChange();   // panggil callback sekali untuk transisi valid
+      }
+    } else {
+      // Sinyal LOW di fase VACANT → reset timer trigger-on (anti-noise).
+      // Sinyal HIGH yang tidak stabil 2 detik penuh dianggap fluktuasi.
+      highSinceMs = 0;
+    }
 
-      // Transisi vacant → occupied
-      if (currentStatus == 0) {
-        currentStatus    = 1;
-        lastStatusChange = now;
-        Serial.printf("🪑 Seat %d: OCCUPIED (motion detected)\n", SEAT_ID);
-        publishStatus();
+  } else {
+    // ------------------------------------------------------------------
+    // Mode 2: OCCUPIED → grace period TRIGGER_OFF_MS (5 menit) tanpa gerakan
+    // ------------------------------------------------------------------
+    if (pirReading == HIGH) {
+      // Ada gerakan dalam masa OCCUPIED — reset timer grace period.
+      // Pengguna masih duduk dan baru saja bergerak, jadi pertahankan
+      // status "Terisi" tanpa batas selama gerakan terus muncul.
+      lowSinceMs = 0;
+    } else {
+      if (lowSinceMs == 0) {
+        // Pertama kali LOW di fase OCCUPIED — mulai grace timer.
+        lowSinceMs = now;
+      } else if (now - lowSinceMs >= TRIGGER_OFF_MS) {
+        // 5 menit penuh tanpa HIGH sekalipun → turun ke VACANT.
+        isOccupied  = false;
+        highSinceMs = 0;
+        lowSinceMs  = 0;
+        onStateChange();   // panggil callback sekali untuk transisi valid
       }
     }
-  } else {
-    pirHighStarted = false;
-  }
-
-  // ---- Vacant Timeout (10 menit tanpa gerakan) ----
-  if (currentStatus == 1 && (now - lastMotionTime >= VACANT_TIMEOUT_MS)) {
-    currentStatus    = 0;
-    lastStatusChange = now;
-    Serial.printf("🪑 Seat %d: VACANT (10-min timeout)\n", SEAT_ID);
-    publishStatus();
-  }
-
-  // ---- Fault detection (60 menit tanpa perubahan, opsional) ----
-  if (now - lastStatusChange >= FAULT_TIMEOUT_MS) {
-    Serial.printf("⚠️  Seat %d: no state change for 60 minutes (sensor fault?)\n", SEAT_ID);
-    lastStatusChange = now;  // reset agar tidak spam log
   }
 }
 
 // ============================================================================
-// MQTT PUBLISH (dengan retry 3x)
+// onStateChange() — DIPANGGIL TEPAT SATU KALI per transisi VALID
+//
+// Tugas: serialize state ke JSON dan publish ke broker MQTT VOKA-SEAT.
+// Backend di vokafe.duckdns.org akan menerima, update Postgres, lalu
+// broadcast WebSocket ke semua browser client yang connected.
 // ============================================================================
-void publishStatus() {
-  // Pastikan MQTT connected sebelum publish
-  if (!mqttClient.connected()) {
-    Serial.println("❌ Cannot publish — MQTT not connected");
-    return;
-  }
+void onStateChange() {
+  const int statusInt = isOccupied ? 1 : 0;
 
-  // Build payload JSON: {"id_kursi": 5, "status": 1}
+  Serial.printf("[State] Seat %d -> %s (status=%d)\n",
+                SEAT_ID, isOccupied ? "OCCUPIED" : "VACANT", statusInt);
+
+  // Build JSON payload sesuai kontrak backend:
+  //   {"id_kursi": <1..24>, "status": <0|1>}
   StaticJsonDocument<64> doc;
   doc["id_kursi"] = SEAT_ID;
-  doc["status"]   = currentStatus;
+  doc["status"]   = statusInt;
 
   char payload[80];
   size_t len = serializeJson(doc, payload, sizeof(payload));
   if (len == 0) {
-    Serial.println("❌ JSON serialization failed");
+    Serial.println("[State] ERROR: JSON serialize failed");
     return;
   }
 
-  // Retry up to MQTT_MAX_RETRIES
-  for (int attempt = 1; attempt <= MQTT_MAX_RETRIES; attempt++) {
+  // TODO: Insert MQTT/ThingsBoard publish payload here
+  // Default implementation di bawah men-publish ke broker VOKA-SEAT.
+  // Kalau mau swap ke ThingsBoard / HiveMQ / broker lain, ganti
+  // body fungsi publishTelemetry() (atau bypass dengan implementasi
+  // langsung di sini).
+  publishTelemetry(payload);
+}
+
+// ============================================================================
+// publishTelemetry() — MQTT publish dengan retry up to MQTT_PUBLISH_RETRIES
+// ============================================================================
+void publishTelemetry(const char* payload) {
+  if (!mqttClient.connected()) {
+    Serial.println("[MQTT] Not connected — payload dropped (will resync on reconnect)");
+    return;
+  }
+
+  for (int attempt = 1; attempt <= MQTT_PUBLISH_RETRIES; attempt++) {
     if (mqttClient.publish(MQTT_TOPIC, payload, false)) {
-      Serial.printf("📤 Published (attempt %d): %s\n", attempt, payload);
+      Serial.printf("[MQTT] Published (try %d): %s\n", attempt, payload);
       return;
     }
-    Serial.printf("❌ Publish failed (attempt %d/%d), retrying...\n", attempt, MQTT_MAX_RETRIES);
-    delay(MQTT_RETRY_DELAY_MS);
+    Serial.printf("[MQTT] Publish failed (try %d/%d), retry...\n",
+                  attempt, MQTT_PUBLISH_RETRIES);
+    // Tidak ada delay antara retry — biarkan loop() yang lain berjalan.
+    // PubSubClient akan re-evaluate connection state di iterasi berikutnya.
+    mqttClient.loop();
+    yield();
   }
 
-  Serial.println("⚠️  All publish retries exhausted. Will retry on next state change.");
+  Serial.println("[MQTT] All retries exhausted; will sync on next state change.");
 }
 
 // ============================================================================
-// WIFI CONNECTION
+// ensureWifiConnected() — non-blocking, retry tiap WIFI_RETRY_INTERVAL_MS
 // ============================================================================
-void connectWiFi() {
+void ensureWifiConnected() {
   if (WiFi.status() == WL_CONNECTED) return;
 
-  Serial.printf("📶 Connecting to WiFi: %s", WIFI_SSID);
+  unsigned long now = millis();
+  if (lastWifiAttemptMs != 0 && (now - lastWifiAttemptMs) < WIFI_RETRY_INTERVAL_MS) {
+    return;  // belum waktunya retry
+  }
+  lastWifiAttemptMs = now;
+
+  Serial.printf("[WiFi] Connecting to '%s'... ", WIFI_SSID);
   WiFi.mode(WIFI_STA);
   WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
-
-  int attempts = 0;
-  while (WiFi.status() != WL_CONNECTED && attempts < 30) {
-    delay(500);
-    Serial.print(".");
-    attempts++;
-  }
-
-  if (WiFi.status() == WL_CONNECTED) {
-    Serial.printf("\n✅ WiFi connected! IP: %s, RSSI: %d dBm\n",
-                  WiFi.localIP().toString().c_str(), WiFi.RSSI());
-  } else {
-    Serial.println("\n❌ WiFi connection failed.");
-  }
+  // WiFi.begin() returns immediately — status akan berubah secara async.
+  // Kita check status di iterasi loop berikutnya, tidak block di sini.
+  Serial.println("(async, will check next loop iteration)");
 }
 
 // ============================================================================
-// MQTT CONNECTION
+// ensureMqttConnected() — non-blocking, retry tiap MQTT_RETRY_INTERVAL_MS
 // ============================================================================
-void connectMQTT() {
+void ensureMqttConnected() {
   if (mqttClient.connected()) return;
-  if (WiFi.status() != WL_CONNECTED) return;
+  if (WiFi.status() != WL_CONNECTED) return;  // wait for WiFi first
 
-  Serial.printf("🔌 Connecting to MQTT: %s:%d", MQTT_BROKER_HOST, MQTT_BROKER_PORT);
+  unsigned long now = millis();
+  if (lastMqttAttemptMs != 0 && (now - lastMqttAttemptMs) < MQTT_RETRY_INTERVAL_MS) {
+    return;
+  }
+  lastMqttAttemptMs = now;
+
+  Serial.printf("[MQTT] Connecting to %s:%d as '%s'... ",
+                MQTT_BROKER_HOST, MQTT_BROKER_PORT, MQTT_CLIENT_ID);
 
   bool ok;
-  // PubSubClient.connect() varian: dengan / tanpa username
   if (strlen(MQTT_USERNAME) > 0) {
     ok = mqttClient.connect(MQTT_CLIENT_ID, MQTT_USERNAME, MQTT_PASSWORD);
   } else {
@@ -280,11 +325,15 @@ void connectMQTT() {
   }
 
   if (ok) {
-    Serial.println(" ✅ MQTT connected!");
+    Serial.println("OK");
+    // Saat re-connect setelah putus, sync state ke backend supaya UI
+    // tidak ketinggalan kalau ada perubahan saat node offline.
+    onStateChange();
   } else {
-    Serial.printf(" ❌ MQTT connection failed, rc=%d\n", mqttClient.state());
-    Serial.println("    rc codes: -4=timeout, -3=lost, -2=conn-failed, -1=disconn,");
-    Serial.println("              0=ok, 1=bad-proto, 2=bad-id, 3=unavailable,");
-    Serial.println("              4=bad-credentials, 5=unauthorized");
+    Serial.printf("FAIL (rc=%d)\n", mqttClient.state());
+    // PubSubClient state codes:
+    //   -4 connection timeout, -3 connection lost, -2 connect failed,
+    //   -1 disconnected, 0 ok, 1 bad protocol, 2 bad client id,
+    //    3 unavailable, 4 bad credentials, 5 unauthorized
   }
 }
